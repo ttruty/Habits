@@ -6,7 +6,7 @@ const card = (page: Page) => page.locator('habit-scorecard');
 
 test('app renders the demo scorecard', async ({ page }) => {
   await page.goto('./');
-  await expect(card(page).getByRole('heading', { name: 'Habits' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Habits', level: 1 })).toBeVisible();
   const table = card(page).getByRole('table');
   await expect(table.getByRole('rowheader')).toHaveCount(5);
   await expect(table.getByRole('rowheader').first()).toContainText('Workout');
@@ -36,6 +36,13 @@ test('fits a 360px phone without sideways page scroll', async ({ page }) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       360,
     );
+    if (view === 'Week') {
+      // The week fits without the table scrolling either, and names break only between words.
+      const scroll = card(page).locator('.scroll');
+      expect(await scroll.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+      const name = card(page).getByRole('rowheader', { name: /Meditate/ });
+      expect(await name.evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThan(60);
+    }
   }
 });
 
@@ -75,4 +82,42 @@ test('embed script works on a foreign page and survives its styles', async ({ pa
     .first()
     .evaluate((el) => getComputedStyle(el).color);
   expect(color).not.toBe('rgb(255, 0, 0)');
+});
+
+test('creates a hand-ticked habit, ticks today, and keeps it after a reload', async ({ page }) => {
+  await page.goto('./');
+  await page.getByRole('navigation').getByRole('button', { name: 'Habits' }).click();
+  await page.getByRole('button', { name: 'New habit' }).click();
+  await page.getByLabel('Name').fill('Stretch');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved Stretch.' })).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page.getByRole('navigation').getByRole('button', { name: 'Scorecard' }).click();
+  const todayCell = card(page)
+    .getByRole('row', { name: /Stretch/ })
+    .getByRole('button', { pressed: false })
+    .last();
+  await todayCell.click();
+  await expect(
+    card(page)
+      .getByRole('row', { name: /Stretch/ })
+      .getByRole('button', { pressed: true }),
+  ).toHaveCount(1);
+
+  await page.reload();
+  await expect(
+    card(page)
+      .getByRole('row', { name: /Stretch/ })
+      .getByRole('button', { pressed: true }),
+  ).toHaveCount(1);
+  await expect(card(page).getByRole('row', { name: /Stretch/ })).toContainText(/1 of [1-7]/); // started today: target is the days left this week
+});
+
+test('habit form has no accessibility violations', async ({ page }) => {
+  await page.goto('./');
+  await page.getByRole('navigation').getByRole('button', { name: 'Habits' }).click();
+  await page.getByRole('button', { name: 'Edit Listen 20m' }).click();
+  await expect(page.getByLabel('Name')).toHaveValue('Listen 20m');
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });

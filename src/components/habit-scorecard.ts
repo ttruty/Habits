@@ -1,8 +1,9 @@
-import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { createDemoProvider } from '../data/demo-provider';
 import type { DataProvider } from '../data/provider';
+import { checkInEvent, checkInsOn, manualSourceOf } from '../connectors/manual';
 import { formatDate } from '../format';
-import type { DateKey, DateRange, Habit, HabitEvent } from '../model';
+import type { DateKey, DateRange, Habit, HabitEvent, Source } from '../model';
 import {
   addDays,
   addMonths,
@@ -14,7 +15,7 @@ import {
   type Weekday,
 } from '../scoring/dates';
 import { buildScorecard } from '../scoring/scorecard';
-import tokens from '../styles/tokens.css?inline';
+import { base } from '../styles/base';
 import { scoreRow } from './score-row';
 
 export type Theme = 'auto' | 'light' | 'dark';
@@ -28,7 +29,9 @@ const HISTORY_DAYS = 365;
  *
  * Attributes: `view` (week | month), `weeks` (columns of weeks in week view), `week-start`
  * (0 = Sunday … 6; default 1 = Monday), `theme` (auto | light | dark), `heading`, and `share`
- * (read-only embeds, from Phase 3).
+ * (read-only embeds, from Phase 4).
+ *
+ * Hand-ticked habits (Manual source) get a toggle button in each cell when the provider can edit.
  */
 export class HabitScorecard extends LitElement {
   static override properties = {
@@ -42,8 +45,10 @@ export class HabitScorecard extends LitElement {
     today: { attribute: false },
     anchor: { state: true },
     habits: { state: true },
+    sources: { state: true },
     events: { state: true },
     status: { state: true },
+    notice: { state: true },
   };
 
   declare theme: Theme;
@@ -51,9 +56,9 @@ export class HabitScorecard extends LitElement {
   declare weeks: number;
   declare weekStart: number;
   declare heading: string | undefined;
-  /** Share token for read-only embeds. Unused until Phase 3. */
+  /** Share token for read-only embeds. Unused until Phase 4. */
   declare share: string | undefined;
-  /** Where data comes from. Defaults to demo data. */
+  /** Where data comes from. Defaults to read-only demo data. */
   declare provider: DataProvider;
   /** Override "today" ('YYYY-MM-DD'), for tests. Defaults to the device's local day. */
   declare today: DateKey | undefined;
@@ -61,10 +66,18 @@ export class HabitScorecard extends LitElement {
   /** A day inside the period on screen. Undefined = the period containing today. */
   declare private anchor: DateKey | undefined;
   declare private habits: Habit[];
+  declare private sources: Source[];
   declare private events: HabitEvent[];
   declare private status: 'loading' | 'ready' | 'error';
+  declare private notice: string;
 
   private loads = 0;
+  /** Cells with a toggle in flight ("habitId:date"); taps on them are ignored. */
+  private saving = new Set<string>();
+  private onVisible = () => {
+    // Back to the tab (or phone unlocked): pick up changes made on another device.
+    if (document.visibilityState === 'visible' && this.status !== 'loading') void this.load();
+  };
 
   constructor() {
     super();
@@ -72,10 +85,22 @@ export class HabitScorecard extends LitElement {
     this.view = 'week';
     this.weeks = 1;
     this.weekStart = 1;
-    this.provider = createDemoProvider();
+    this.provider = createDemoProvider({ readOnly: true });
     this.habits = [];
+    this.sources = [];
     this.events = [];
     this.status = 'loading';
+    this.notice = '';
+  }
+
+  override connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener('visibilitychange', this.onVisible);
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('visibilitychange', this.onVisible);
   }
 
   private get todayKey(): DateKey {
@@ -106,8 +131,9 @@ export class HabitScorecard extends LitElement {
     const { from, to } = this.range;
     const historyFrom = addDays(today, -HISTORY_DAYS);
     try {
-      const [habits, events] = await Promise.all([
+      const [habits, sources, events] = await Promise.all([
         this.provider.listHabits(),
+        this.provider.listSources(),
         this.provider.listEvents({
           from: from < historyFrom ? from : historyFrom,
           to: to > today ? to : today,
@@ -115,6 +141,7 @@ export class HabitScorecard extends LitElement {
       ]);
       if (id !== this.loads) return; // a newer load started
       this.habits = habits;
+      this.sources = sources;
       this.events = events;
       this.status = 'ready';
     } catch {
@@ -130,6 +157,28 @@ export class HabitScorecard extends LitElement {
     const scroll = this.renderRoot.querySelector<HTMLElement>('.scroll');
     const day = this.renderRoot.querySelector<HTMLElement>('thead th.today');
     if (scroll && day) scroll.scrollLeft = day.offsetLeft - scroll.clientWidth / 2;
+  }
+
+  /** Tick or untick a hand-ticked habit on `date`. Shows the change at once, then saves. */
+  private async toggle(habit: Habit, source: Source, date: DateKey) {
+    const key = `${habit.id}:${date}`;
+    if (this.saving.has(key)) return;
+    this.saving.add(key);
+    this.notice = '';
+    const existing = checkInsOn(habit, source, date, this.events);
+    const added = checkInEvent(habit, source, date, this.todayKey, new Date());
+    this.events = existing.length
+      ? this.events.filter((e) => !existing.includes(e))
+      : [...this.events, { ...added, id: `unsaved:${key}` }];
+    try {
+      if (existing.length) await Promise.all(existing.map((e) => this.provider.deleteEvent(e.id)));
+      else await this.provider.putEvent(added);
+    } catch {
+      this.notice = "Couldn't save that. Try again.";
+    } finally {
+      this.saving.delete(key);
+    }
+    await this.load();
   }
 
   private step(direction: -1 | 1) {
@@ -214,66 +263,61 @@ export class HabitScorecard extends LitElement {
     const days = eachDay(range);
     const dayLabel = (d: DateKey) =>
       formatDate(d, { weekday: 'long', day: 'numeric', month: 'long' });
+    const toggleFor = (habit: Habit) => {
+      const source = this.provider.canEdit ? manualSourceOf(habit, this.sources) : undefined;
+      return source && ((date: DateKey) => void this.toggle(habit, source, date));
+    };
 
     return html`<div class="scroll">
-      <table class=${month ? 'compact' : ''} aria-labelledby="range">
-        <thead>
-          <tr>
-            <th scope="col" class="name"><span class="sr">Habit</span></th>
-            ${days.map(
-              (d) =>
-                html`<th
-                  scope="col"
-                  class="day ${d === today ? 'today' : ''}"
-                  aria-current=${d === today ? 'date' : nothing}
-                >
-                  ${
-                    month
-                      ? nothing
-                      : html`<span class="dow" aria-hidden="true"
-                          >${formatDate(d, { weekday: 'narrow' })}</span
-                        >`
-                  }<span class="dom" aria-hidden="true">${Number(d.slice(8))}</span
-                  ><span class="sr">${dayLabel(d)}</span>
-                </th>`,
+        <table class=${month ? 'compact' : ''} aria-labelledby="range">
+          <thead>
+            <tr>
+              <th scope="col" class="name"><span class="sr">Habit</span></th>
+              ${days.map(
+                (d) =>
+                  html`<th
+                    scope="col"
+                    class="day ${d === today ? 'today' : ''}"
+                    aria-current=${d === today ? 'date' : nothing}
+                  >
+                    ${
+                      month
+                        ? nothing
+                        : html`<span class="dow" aria-hidden="true"
+                            >${formatDate(d, { weekday: 'narrow' })}</span
+                          >`
+                    }<span class="dom" aria-hidden="true">${Number(d.slice(8))}</span
+                    ><span class="sr">${dayLabel(d)}</span>
+                  </th>`,
+              )}
+              <th scope="col" class="summary">${month ? 'Days' : 'Week'}</th>
+              <th scope="col" class="summary">Streak</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) =>
+              scoreRow(row, {
+                today,
+                dayLabel,
+                summary: month ? 'days' : 'week',
+                compact: month,
+                toggle: toggleFor(row.habit),
+              }),
             )}
-            <th scope="col" class="summary">${month ? 'Days' : 'Week'}</th>
-            <th scope="col" class="summary">Streak</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map((row) =>
-            scoreRow(row, { today, dayLabel, summary: month ? 'days' : 'week', compact: month }),
-          )}
-        </tbody>
-      </table>
-    </div>`;
+          </tbody>
+        </table>
+      </div>
+      ${this.notice ? html`<p class="status error" role="alert">${this.notice}</p>` : nothing}`;
   }
 
   static override styles = [
-    unsafeCSS(tokens),
+    ...base,
     css`
       :host {
-        display: block;
-        font-family: var(--hs-font);
-        font-size: var(--hs-font-size);
-        line-height: 1.4;
-        color: var(--hs-text);
+        container-type: inline-size;
         background: var(--hs-bg);
         padding: calc(var(--hs-space) * 2);
         border-radius: var(--hs-radius);
-        box-sizing: border-box;
-      }
-      .sr {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip-path: inset(50%);
-        white-space: nowrap;
-        border: 0;
       }
       h1 {
         font-size: 1.25rem;
@@ -300,26 +344,6 @@ export class HabitScorecard extends LitElement {
         font-weight: 600;
         min-width: 9.5rem;
         text-align: center;
-      }
-      button {
-        font: inherit;
-        color: var(--hs-text);
-        background: var(--hs-surface);
-        border: 1px solid var(--hs-border);
-        border-radius: var(--hs-radius);
-        min-height: 2.5rem;
-        min-width: 2.5rem;
-        padding: 0 0.75rem;
-        cursor: pointer;
-      }
-      button:disabled {
-        color: var(--hs-text-muted);
-        opacity: 0.6;
-        cursor: default;
-      }
-      button:focus-visible {
-        outline: 2px solid var(--hs-focus);
-        outline-offset: 2px;
       }
       .toggle {
         gap: 0;
@@ -370,7 +394,8 @@ export class HabitScorecard extends LitElement {
         background: var(--hs-bg);
         text-align: left;
         padding-right: calc(var(--hs-space) / 2);
-        overflow-wrap: anywhere;
+        overflow-wrap: break-word;
+        hyphens: auto;
         font-weight: 500;
         color: var(--hs-text);
       }
@@ -411,6 +436,27 @@ export class HabitScorecard extends LitElement {
         color: var(--hs-text-muted);
         font-size: 0.8em;
         margin-left: 1px;
+      }
+
+      /* Hand-ticked cells: the whole cell is the button. */
+      .tick {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 2.25rem;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .tick:hover .mark.missed,
+      .tick:hover .mark.pending {
+        outline: 1px solid var(--hs-text-muted);
+        outline-offset: 4px;
+        border-radius: 50%;
       }
 
       /* Marks: shape and colour both carry the state. */
@@ -473,6 +519,21 @@ export class HabitScorecard extends LitElement {
         font-size: 0.6875rem;
         color: var(--hs-text-muted);
         font-variant-numeric: tabular-nums;
+      }
+
+      /* Narrow (a phone, or a small embed): tighter week columns so names keep whole words. */
+      @container (max-width: 26rem) {
+        .cell {
+          width: 1.5rem;
+          min-width: 1.5rem;
+        }
+        .summary {
+          padding-inline: 0.125rem;
+          font-size: 0.875rem;
+        }
+        thead th.summary {
+          font-size: 0.75rem;
+        }
       }
 
       /* Month: ~31 narrow columns, scrolls sideways on a phone. */

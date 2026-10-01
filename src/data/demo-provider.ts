@@ -1,10 +1,13 @@
 import type { DateKey, DateRange, Habit, HabitEvent, Source } from '../model';
-import { addDays, eachDay, localDateKey } from '../scoring/dates';
-import type { DataProvider } from './provider';
+import { addDays, eachDay, inRange, localDateKey } from '../scoring/dates';
+import { ReadOnlyError, type DataProvider, type NewEvent } from './provider';
 
 // Fake data for the UI, the embed and tests: eight weeks up to today for five example habits.
-// Each day's events come from a seed made of the habit and the date, so a given day looks the
-// same on every load and the data never goes stale.
+// Each day's events come from a seed made of the date, so a given day looks the same on every
+// load and the data never goes stale.
+//
+// Writes (habits, sources, check-ins) go to `storage` when one is given, so the demo app keeps
+// your changes in this browser. Generated events can't be deleted.
 
 const DAYS = 56;
 const CREATED = '2026-01-01T00:00:00.000Z';
@@ -182,17 +185,94 @@ function eventsFor(day: DateKey, now: Date): HabitEvent[] {
   });
 }
 
-export function createDemoProvider(now: () => Date = () => new Date()): DataProvider {
+export const DEMO_STORAGE_KEY = 'habits.demo.v1';
+
+interface Saved {
+  habits: Habit[];
+  sources: Source[];
+  events: HabitEvent[];
+}
+
+export interface DemoOptions {
+  now?: () => Date;
+  /** Where writes persist. None = in memory only. */
+  storage?: Storage | null;
+  readOnly?: boolean;
+}
+
+export function createDemoProvider({
+  now = () => new Date(),
+  storage = null,
+  readOnly = false,
+}: DemoOptions = {}): DataProvider {
   const today = () => localDateKey(now());
+  let saved: Saved | undefined;
+
+  function state(): Saved {
+    if (!saved) {
+      try {
+        const raw = storage?.getItem(DEMO_STORAGE_KEY);
+        if (raw) saved = JSON.parse(raw) as Saved;
+      } catch {
+        // Unreadable or blocked storage: start fresh.
+      }
+      saved ??= { habits: habits(today()), sources: [], events: [] };
+    }
+    return saved;
+  }
+
+  function write(change: (s: Saved) => void) {
+    if (readOnly) throw new ReadOnlyError();
+    change(state());
+    try {
+      storage?.setItem(DEMO_STORAGE_KEY, JSON.stringify(saved));
+    } catch {
+      // Full or blocked storage: keep the change for this page only.
+    }
+  }
+
   return {
-    listSources: async () => sources,
-    listHabits: async () => habits(today()),
+    canEdit: !readOnly,
+    listSources: async () => [...sources, ...state().sources],
+    listHabits: async () => structuredClone(state().habits),
     async listEvents(range: DateRange) {
       const t = today();
       const from = range.from > addDays(t, -(DAYS - 1)) ? range.from : addDays(t, -(DAYS - 1));
       const to = range.to < t ? range.to : t;
       const at = now();
-      return eachDay({ from, to }).flatMap((day) => eventsFor(day, at));
+      const generated = eachDay({ from, to }).flatMap((day) => eventsFor(day, at));
+      return [...generated, ...state().events.filter((e) => inRange(e.localDate, range))];
+    },
+    async addSource(source) {
+      const added: Source = { ...source, id: crypto.randomUUID(), createdAt: now().toISOString() };
+      write((s) => s.sources.push(added));
+      return added;
+    },
+    async saveHabit(habit) {
+      write((s) => {
+        const i = s.habits.findIndex((h) => h.id === habit.id);
+        if (i >= 0) s.habits[i] = structuredClone(habit);
+        else s.habits.push(structuredClone(habit));
+      });
+    },
+    async saveHabitOrder(ids) {
+      write((s) => {
+        for (const h of s.habits) if (ids.includes(h.id)) h.sort = ids.indexOf(h.id);
+      });
+    },
+    async putEvent(event: NewEvent) {
+      write((s) => {
+        const i = s.events.findIndex(
+          (e) => e.sourceId === event.sourceId && e.externalId === event.externalId,
+        );
+        if (i >= 0) s.events[i] = { ...event, id: s.events[i].id };
+        else s.events.push({ ...event, id: crypto.randomUUID() });
+      });
+    },
+    async deleteEvent(id) {
+      write((s) => {
+        s.events = s.events.filter((e) => e.id !== id);
+      });
     },
   };
 }

@@ -197,7 +197,7 @@ Habits/
     embed.ts                 # registers <habit-scorecard>; the single script for host pages
     model.ts                 # the Core model types above
     format.ts                # values ("1h 5m") and dates for display
-    components/              # habit-scorecard (element); score-row, day-cell (templates, see below); habit-editor, source-list, check-in-button
+    components/              # habits-app (app shell), habit-scorecard (element, also the embed), habit-editor, sign-in-form; score-row, day-cell (templates, see below); habit-draft.ts (pure editor logic)
     scoring/                 # pure: score.ts, streak.ts, week.ts, dates.ts, scorecard.ts (+ .spec.ts)
     connectors/              # client descriptors + registry.ts
     data/                    # DataProvider interface; supabase-provider.ts, demo-provider.ts
@@ -233,13 +233,38 @@ Habits/
 of fake data, seeded per date, so the UI, the embed and the tests run without Supabase.
 `supabase-provider` is the real one. Build all UI against the interface.
 
+**As built (Phase 2):**
+
+- `DataProvider` covers writes too (`addSource`, `saveHabit`, `saveHabitOrder`,
+  `putEvent` as an upsert on `(sourceId, externalId)`, `deleteEvent`) plus
+  `canEdit`. Read-only providers throw `ReadOnlyError`. `<habit-scorecard>`
+  defaults to a **read-only** demo provider, so the embed can never write; the
+  app passes a writable one.
+- Demo mode: `npm run dev`, or any build without `VITE_SUPABASE_URL` /
+  `VITE_SUPABASE_ANON_KEY`, or `?demo` in the URL. Demo writes persist in
+  localStorage (`habits.demo.v1`). Supabase code loads only in live mode.
+- **Manual habits:** one `manual` Source serves every hand-ticked habit.
+  A habit's match is `{ sourceIds: [manual], types: ['check-in'], where:
+  { habit_id } }`, and a check-in's `externalId` is `<habitId>:<date>`.
+  The source is created the first time a hand-ticked habit is saved. There is
+  no separate check-in button: each past/today cell of a hand-ticked habit is
+  a toggle button (`aria-pressed`). Ticks show at once, then save.
+- Sign-in is an email magic link with sign-ups disabled (`supabase/config.toml`),
+  so only the owner's account (created once in the dashboard) can sign in.
+  Every table has `owner_id default auth.uid()` and an owner-only RLS policy;
+  `anon` has no grants. Token hashes can be inserted but never read back.
+- The scorecard reloads when the tab becomes visible again, so a tick on one
+  device shows on another without a manual refresh.
+- PostgREST returns at most 1000 rows per request; `listEvents` pages.
+
 ---
 
 ## Commands
 
 ```bash
 npm run dev            # Vite dev server, demo provider by default
-npm run dev:live       # against local Supabase (supabase start), from Phase 2
+npm run dev:live       # against Supabase: keys from .env.live.local (see .env.example)
+npm run db:push        # apply supabase/migrations to the linked project
 npm test               # Vitest
 npm run e2e            # Playwright: app + embed-in-a-foreign-page smoke test
 npm run build          # typecheck, then app + embed bundle into dist/
@@ -272,9 +297,8 @@ supabase db reset      # apply migrations + seed
 
 Each has a recommendation. Change it here if you decide otherwise.
 
-- **Backend:** reuse the DeckFit Supabase project, or make a new one?
-  _Recommended: a new project_, so the habit data and DeckFit's realtime rooms
-  don't share keys or quotas.
+- **Backend: decided.** A new Supabase project, separate from DeckFit's.
+- **Sign-in: decided.** Email magic link (no Google OAuth client needed).
 - **Single user: decided.** One owner, with RLS that only lets my account in.
   Don't build sharing between users, invites or account management.
 - **Steam as goal, limit or metric?** _Recommended: start as a metric_ (a minutes

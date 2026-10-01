@@ -9,7 +9,14 @@ export type Summary = 'week' | 'days';
 
 export function scoreRow(
   row: ScoreRow,
-  opts: { today: DateKey; dayLabel: (d: DateKey) => string; summary: Summary; compact: boolean },
+  opts: {
+    today: DateKey;
+    dayLabel: (d: DateKey) => string;
+    summary: Summary;
+    compact: boolean;
+    /** Set for hand-ticked habits the viewer may edit. */
+    toggle?: (date: DateKey) => void;
+  },
 ) {
   const { habit, cells, unit } = row;
   const metric = isMetric(habit);
@@ -25,6 +32,7 @@ export function scoreRow(
         dayLabel: opts.dayLabel(cell.date),
         isToday: cell.date === opts.today,
         showValue: !opts.compact,
+        onToggle: opts.toggle && (() => opts.toggle!(cell.date)),
       }),
     )}
     <td class="summary">

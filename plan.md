@@ -91,16 +91,16 @@ and scoring has full test coverage.
 
 **Goal:** real persistence, plus a habit you tick by hand.
 
-- [ ] Migrations: `sources`, `events` (unique `source_id, external_id`; index
+- [x] Migrations: `sources`, `events` (unique `source_id, external_id`; index
       `(owner_id, local_date)`), `habits`, `ingest_tokens` (hashed),
       `share_tokens`. RLS lets only my account in (single user, no sign-up flow:
       disable public sign-ups in Supabase Auth).
-- [ ] Owner sign-in with Supabase Auth (magic link, or Google, which fits the
+- [x] Owner sign-in with Supabase Auth (magic link, or Google, which fits the
       other apps).
-- [ ] `supabase-provider` using the same interface as the demo provider.
-- [ ] Habit editor: name, icon, colour token, source + event type pickers
+- [x] `supabase-provider` using the same interface as the demo provider.
+- [x] Habit editor: name, icon, colour token, source + event type pickers
       (from the connector registry), rule, weekly target, archive, reorder.
-- [ ] `manual` connector: a check-in button per habit. Tapping a past cell
+- [x] `manual` connector: a check-in button per habit. Tapping a past cell
       toggles it (writes or deletes a `check-in` event for that date).
 
 **Done when:** I can sign in, create "Read", tick today, and see it on a
@@ -312,6 +312,23 @@ entry" (see CLAUDE.md, rule 4).
 ## Notes log
 
 Append findings, surprises and as-built changes here, newest first.
+
+- _2026-10-01_: Phase 2 built. As-built differences from the plan:
+  - Sign-in is an email magic link (decided over Google: no OAuth client to
+    set up). Sign-ups are off in `supabase/config.toml`; the owner's user is
+    created once in the dashboard.
+  - No separate check-in button: a hand-ticked habit's cells are toggle buttons,
+    today's included. See CLAUDE.md for the manual-habit match shape.
+  - Event-type-only descriptors for DeckFit, MindDrive, Yarnbeard, Strava and
+    Webhook were added now, so the editor can describe the demo's sources.
+    Their presets still come with Phases 3, 4 and 6.
+  - `source-list` isn't built: nothing needs it until "Connect an app" in
+    Phase 3.
+  - The habit editor reorders with Up/Down buttons (keyboard-friendly) rather
+    than drag and drop.
+  - Not tested against a local Supabase stack (Docker wasn't running).
+  - Supabase's built-in email sender allows only a few emails an hour. Fine for
+    one user; set up custom SMTP if links stop arriving.
 
 - _2026-10-01_: Phase 1 built. As-built differences from the plan:
   - `Habit.startDate` (optional) added for "a habit created mid-week": days

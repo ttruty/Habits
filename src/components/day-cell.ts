@@ -36,13 +36,35 @@ function level(value: number, max: number): number {
 export function dayCell(
   habit: Habit,
   cell: DayCell,
-  opts: { unit?: Unit; dayLabel: string; isToday: boolean; max: number; showValue: boolean },
+  opts: {
+    unit?: Unit;
+    dayLabel: string;
+    isToday: boolean;
+    max: number;
+    showValue: boolean;
+    /** Hand-ticked habits: makes the cell a toggle button. */
+    onToggle?: () => void;
+  },
 ) {
   const label = `${habit.name}, ${opts.dayLabel}: ${cellStatus(habit, cell, opts.unit)}`;
   const over =
     cell.state === 'missed' && habit.rule.atMost !== undefined && cell.value > habit.rule.atMost;
   const mark = over ? 'over' : cell.state;
   const metric = cell.state === 'metric';
+  if (opts.onToggle && ['done', 'missed', 'pending'].includes(cell.state)) {
+    return html`<td class="cell ${opts.isToday ? 'today' : ''}">
+      <button
+        type="button"
+        class="tick"
+        aria-pressed=${cell.done ? 'true' : 'false'}
+        aria-label="${habit.name}, ${opts.dayLabel}"
+        title=${label}
+        @click=${opts.onToggle}
+      >
+        <span class="mark ${mark}" aria-hidden="true"></span>
+      </button>
+    </td>`;
+  }
   return html`<td class="cell ${opts.isToday ? 'today' : ''}" title=${label}>
     <span
       class="mark ${mark} ${metric ? `level-${level(cell.value, opts.max)}` : ''}"

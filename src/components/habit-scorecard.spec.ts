@@ -1,23 +1,44 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { DataProvider } from '../data/provider';
-import type { Habit, HabitEvent } from '../model';
+import type { Habit, HabitEvent, Source } from '../model';
 import { event, habit } from '../scoring/test-helpers';
+import { manualMatch } from '../connectors/manual';
 import { cellStatus } from './day-cell';
 import { HabitScorecard } from './habit-scorecard';
 
 const today = '2026-10-01'; // Thursday
 
-function provider(habits: Habit[], events: HabitEvent[]): DataProvider & { ranges: unknown[] } {
+function provider(
+  habits: Habit[],
+  events: HabitEvent[],
+  sources: Source[] = [],
+): DataProvider & { ranges: unknown[]; events: HabitEvent[] } {
   const ranges: unknown[] = [];
+  const store = { ranges, events: [...events] };
   return {
-    ranges,
-    listSources: async () => [],
+    ...store,
+    canEdit: true,
+    listSources: async () => sources,
     listHabits: async () => habits,
     listEvents: async (range) => {
       ranges.push(range);
-      return events.filter((e) => e.localDate >= range.from && e.localDate <= range.to);
+      return store.events.filter((e) => e.localDate >= range.from && e.localDate <= range.to);
     },
-  };
+    addSource: async () => {
+      throw new Error('unused');
+    },
+    saveHabit: async () => {},
+    saveHabitOrder: async () => {},
+    putEvent: async (e) => {
+      store.events.push({ ...e, id: `saved-${store.events.length}` });
+    },
+    deleteEvent: async (id) => {
+      store.events = store.events.filter((e) => e.id !== id);
+    },
+    get events() {
+      return store.events;
+    },
+  } as DataProvider & { ranges: unknown[]; events: HabitEvent[] };
 }
 
 async function mount(p: DataProvider, attrs: Record<string, string> = {}) {
@@ -174,11 +195,10 @@ describe('<habit-scorecard>', () => {
 
   it('says when loading fails', async () => {
     const failing: DataProvider = {
-      listSources: async () => [],
+      ...provider([], []),
       listHabits: async () => {
         throw new Error('offline');
       },
-      listEvents: async () => [],
     };
     const card = await mount(failing);
     expect(text($(card, '[role=alert]'))).toBe("Couldn't load habits.");
@@ -189,6 +209,87 @@ describe('<habit-scorecard>', () => {
     expect(text($(card, 'h1'))).toBe('Habits');
     const bare = await mount(provider([], []));
     expect($(bare, 'h1')).toBeNull();
+  });
+});
+
+describe('hand-ticked habits', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  const manual: Source = {
+    id: 'm',
+    kind: 'manual',
+    label: 'Manual',
+    config: {},
+    createdAt: '2026-01-01T00:00:00Z',
+  };
+  const read = habit({ id: 'read', name: 'Read', match: manualMatch('read', 'm') });
+  const ticks = (card: HabitScorecard) => $$(card, 'tbody button.tick') as HTMLButtonElement[];
+
+  it('makes past and today cells toggle buttons, but not future ones', async () => {
+    const card = await mount(provider([read], [], [manual]));
+    const buttons = ticks(card);
+    expect(buttons).toHaveLength(4); // Mon–Thu
+    expect(buttons[3].getAttribute('aria-label')).toMatch(/^Read, Thursday/);
+    expect(buttons.every((b) => b.getAttribute('aria-pressed') === 'false')).toBe(true);
+  });
+
+  it('ticks and unticks a day', async () => {
+    const p = provider([read], [], [manual]);
+    const card = await mount(p);
+    ticks(card)[3].click();
+    // Shown at once, before the save finishes.
+    await card.updateComplete;
+    expect(ticks(card)[3].getAttribute('aria-pressed')).toBe('true');
+    await settle(card);
+    expect(p.events).toHaveLength(1);
+    expect(p.events[0]).toMatchObject({
+      sourceId: 'm',
+      externalId: 'read:2026-10-01',
+      type: 'check-in',
+      localDate: today,
+      meta: { habit_id: 'read' },
+    });
+
+    ticks(card)[3].click();
+    await settle(card);
+    expect(p.events).toHaveLength(0);
+    expect(ticks(card)[3].getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('ticks a past day with a timestamp on that day', async () => {
+    const p = provider([read], [], [manual]);
+    const card = await mount(p);
+    ticks(card)[0].click();
+    await settle(card);
+    expect(p.events[0].localDate).toBe('2026-09-28');
+    expect(new Date(p.events[0].occurredAt).getDate()).toBe(28);
+  });
+
+  it('says so when a save fails, and shows the stored state again', async () => {
+    const p = provider([read], [], [manual]);
+    p.putEvent = async () => {
+      throw new Error('offline');
+    };
+    const card = await mount(p);
+    ticks(card)[3].click();
+    await settle(card);
+    expect(text($(card, '[role=alert]'))).toBe("Couldn't save that. Try again.");
+    expect(ticks(card)[3].getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('has no buttons when the provider is read-only', async () => {
+    const p = { ...provider([read], [], [manual]), canEdit: false };
+    const card = await mount(p);
+    expect(ticks(card)).toHaveLength(0);
+  });
+
+  it('reloads when the page becomes visible again', async () => {
+    const p = provider([read], [], [manual]);
+    const card = await mount(p);
+    const before = p.ranges.length;
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle(card);
+    expect(p.ranges.length).toBe(before + 1);
   });
 });
 

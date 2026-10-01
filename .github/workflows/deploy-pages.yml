@@ -35,9 +35,13 @@ jobs:
 
       # Base path defaults to /Habits/. For a custom domain at the root, set the repository
       # variable PAGES_BASE to "/" (Settings → Secrets and variables → Actions → Variables).
+      # SUPABASE_URL and SUPABASE_ANON_KEY (repository variables, not secrets: both are public by
+      # design and RLS protects the data). Missing = the site runs on demo data.
       - run: npm run build
         env:
           PAGES_BASE: ${{ vars.PAGES_BASE || '/Habits/' }}
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
 
       # Embed budget: dist/embed.js must stay under 25 KB gzipped.
       - run: npm run size
