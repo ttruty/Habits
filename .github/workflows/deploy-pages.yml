@@ -30,7 +30,8 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
-      - run: npm test
+      # Scoring must stay at 100% coverage (thresholds in vite.config.ts).
+      - run: npm run test:coverage
 
       # Base path defaults to /Habits/. For a custom domain at the root, set the repository
       # variable PAGES_BASE to "/" (Settings → Secrets and variables → Actions → Variables).

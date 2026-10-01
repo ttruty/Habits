@@ -18,5 +18,12 @@ export default defineConfig(({ command, isPreview }) => ({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.spec.ts'],
+    // A zone with DST, so date code is tested against real clock changes.
+    env: { TZ: 'America/Chicago' },
+    coverage: {
+      include: ['src/scoring/**', 'src/data/**', 'src/format.ts'],
+      exclude: ['**/*.spec.ts', '**/test-helpers.ts'],
+      thresholds: { 'src/scoring/**': { 100: true } },
+    },
   },
 }));

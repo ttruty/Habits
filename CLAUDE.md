@@ -152,6 +152,7 @@ interface Habit {
   // atLeast = a goal ("listen ≥ 20 min"); atMost = a limit ("game ≤ 90 min").
   // Neither = a tracked metric: the cell shows the amount, with no done/missed state.
   target: { perWeek: number }; // 7 = daily; 3 = three times a week
+  startDate?: string;         // first local day it counts; earlier days are never "missed", and that week's target is prorated
   archivedAt?: string;
   sort: number;
 }
@@ -194,8 +195,10 @@ Habits/
   src/
     main.ts                  # app bootstrap
     embed.ts                 # registers <habit-scorecard>; the single script for host pages
-    components/              # habit-scorecard, score-row, day-cell, habit-editor, source-list, check-in-button
-    scoring/                 # pure: score.ts, streak.ts, week.ts, dates.ts (+ .spec.ts)
+    model.ts                 # the Core model types above
+    format.ts                # values ("1h 5m") and dates for display
+    components/              # habit-scorecard (element); score-row, day-cell (templates, see below); habit-editor, source-list, check-in-button
+    scoring/                 # pure: score.ts, streak.ts, week.ts, dates.ts, scorecard.ts (+ .spec.ts)
     connectors/              # client descriptors + registry.ts
     data/                    # DataProvider interface; supabase-provider.ts, demo-provider.ts
     styles/tokens.css        # light/dark tokens
@@ -213,8 +216,21 @@ Habits/
   .github/workflows/deploy-pages.yml
 ```
 
-`DataProvider` has two implementations. `demo-provider` uses seeded fake data
-in localStorage, so the UI, the embed and the tests run without Supabase.
+**As built (Phase 1):**
+
+- `score-row` and `day-cell` are Lit *template functions*, not custom elements.
+  An element between `<tbody>` and `<td>` breaks native table semantics, and
+  the accessibility rule needs a real `<table>`. Only `<habit-scorecard>` is an element.
+- `scoreHabit(habit, events, range, today)` takes `today` explicitly; nothing in
+  `scoring/` reads the clock. Cells are `{ date, value, state, done }`, with
+  `state` one of `done | missed | pending | future | inactive | metric`.
+- `buildScorecard()` in `scoring/scorecard.ts` is the one call the UI (and later
+  `/share`) makes. It dedupes by `(sourceId, externalId)`, last copy wins.
+- Vitest runs with `TZ=America/Chicago` so DST is real in tests. CI enforces
+  100% coverage on `src/scoring/`.
+
+`DataProvider` has two implementations. `demo-provider` generates eight weeks
+of fake data, seeded per date, so the UI, the embed and the tests run without Supabase.
 `supabase-provider` is the real one. Build all UI against the interface.
 
 ---

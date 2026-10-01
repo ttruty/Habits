@@ -65,22 +65,22 @@ page to `/Habits/`, and `npm test` runs.
 
 **Goal:** the whole UI works with no backend.
 
-- [ ] `scoring/dates.ts`: local-date helpers, ISO week start (Monday,
+- [x] `scoring/dates.ts`: local-date helpers, ISO week start (Monday,
       configurable), DST-safe day maths (use the `Date.UTC` day-number approach
       from MindDrive `core/streak.ts`).
-- [ ] `scoring/score.ts`: `scoreHabit(habit, events, range)` → per-day
+- [x] `scoring/score.ts`: `scoreHabit(habit, events, range)` → per-day
       `{ date, value, done }`, using the `count` and `sum` aggregates and the
       `where` filter.
-- [ ] `scoring/week.ts` and `streak.ts`: week progress `n / target`.
+- [x] `scoring/week.ts` and `streak.ts`: week progress `n / target`.
       - A **daily** habit (target 7) has a streak counted in days.
       - A **weekly-target** habit (for example 3×/week) has a streak counted in
         consecutive weeks that hit the target.
       - Today and the current week count as "still open", never as broken.
-- [ ] Unit tests: DST weekends, a habit created mid-week, duplicate events,
+- [x] Unit tests: DST weekends, a habit created mid-week, duplicate events,
       `sum` thresholds, weekly streaks.
-- [ ] `DataProvider` interface and `demo-provider` (8 weeks of seeded events for
+- [x] `DataProvider` interface and `demo-provider` (8 weeks of seeded events for
       the five example habits).
-- [ ] Components: `<habit-scorecard>` (a table with a week/month toggle and
+- [x] Components: `<habit-scorecard>` (a table with a week/month toggle and
       prev/next), `score-row`, `day-cell`. Light/dark, keyboard and
       screen-reader labels.
 
@@ -230,7 +230,8 @@ This needs nothing from Steam's servers.
       - Provide `-Uninstall`.
 - [ ] Presets: "Gaming" as a minutes **metric** (no done/missed), plus an
       optional limit preset "Gaming ≤ 90 min/day" (`atMost`).
-- [ ] Scoring: support `atMost` and metric-only habits.
+- [ ] Scoring: support `atMost` and metric-only habits. (Scoring and basic
+      display done early, in Phase 1. Still to do: per-game tooltip, heatmap rows.)
       - A limit cell counts as "done" when the day is over and the total
         stayed under the limit.
       - Show the minutes in the cell or a tooltip, and the per-game breakdown
@@ -311,6 +312,30 @@ entry" (see CLAUDE.md, rule 4).
 ## Notes log
 
 Append findings, surprises and as-built changes here, newest first.
+
+- _2026-10-01_: Phase 1 built. As-built differences from the plan:
+  - `Habit.startDate` (optional) added for "a habit created mid-week": days
+    before it are `inactive`, never missed, and that week's target drops to
+    `min(perWeek, active days)`. Streaks stop at it.
+  - `atMost` limits and metric-only rows are scored already (it's a few lines
+    in `cellState`). Limit days are `pending` until the day is over; going over
+    is `missed` at once. Metric cells show a 0–4 intensity square.
+  - `score-row` / `day-cell` are template functions, not elements (table
+    semantics; see CLAUDE.md).
+  - Demo events aren't stored in localStorage. Each day's events come from a
+    seed of the date, so they're stable across reloads and never go stale.
+    localStorage is left for Phase 2's demo check-ins.
+  - Streaks look back one year (`HISTORY_DAYS`); the scorecard loads that much.
+  - Month view is a 28–31-column day grid. On a phone it scrolls inside the
+    table (name column sticky) and opens with today in view; it fits on
+    desktop. Phase 7 can rethink it.
+  - Summary column: week view shows `done/target` for the last week shown (✓
+    when met); month view shows done days. Streaks show weeks with a `w`.
+  - Playwright now runs axe (light + dark, week + month) and checks the page
+    doesn't scroll sideways at 360px.
+  - Embed: 13.2 KB gzipped, including the demo provider.
+  - Not done: "Powered by Strava" attribution. The demo's Strava data is fake;
+    the real attribution belongs with the Strava connector in Phase 4.
 
 - _2026-10-01_: Phase 0 built. As-built differences from the plan:
   - Repo reset: old `.git` deleted (no backup), fresh `main`, pushed to
