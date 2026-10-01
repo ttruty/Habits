@@ -1,0 +1,78 @@
+/*
+ * Design tokens. Components read only these custom properties, never raw colours, so a theme is a
+ * token swap. They're set on :host so they apply inside each component's shadow root; host pages
+ * can override any of them on the <habit-scorecard> element.
+ *
+ * theme="auto" (default) follows the OS; theme="light" / theme="dark" force one.
+ */
+:host {
+  --hs-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --hs-font-size: 0.9375rem;
+  --hs-radius: 8px;
+  --hs-space: 0.5rem;
+
+  /* Light */
+  --hs-bg: #ffffff;
+  --hs-surface: #f4f5f7;
+  --hs-text: #1b1d21;
+  --hs-text-muted: #5c6370;
+  --hs-border: #dcdfe4;
+  --hs-done: #1f6f5c;
+  --hs-missed: #c9ced6;
+  --hs-over: #a3402c;
+  --hs-focus: #2b5fd9;
+
+  /* Habit colour tokens (Habit.color names one of these) */
+  --hs-color-green: #2e7d4f;
+  --hs-color-blue: #2b5fd9;
+  --hs-color-purple: #7448c2;
+  --hs-color-orange: #c25a12;
+  --hs-color-red: #b3261e;
+  --hs-color-teal: #1f6f5c;
+
+  color-scheme: light;
+}
+
+:host([theme='dark']) {
+  --hs-bg: #15171b;
+  --hs-surface: #1f2228;
+  --hs-text: #e8eaee;
+  --hs-text-muted: #9aa1ad;
+  --hs-border: #343842;
+  --hs-done: #4fc3a1;
+  --hs-missed: #3b404a;
+  --hs-over: #f08a70;
+  --hs-focus: #8ab0ff;
+
+  --hs-color-green: #6fcf97;
+  --hs-color-blue: #8ab0ff;
+  --hs-color-purple: #b79cf0;
+  --hs-color-orange: #f2a65a;
+  --hs-color-red: #f28b82;
+  --hs-color-teal: #4fc3a1;
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host(:not([theme='light'])) {
+    --hs-bg: #15171b;
+    --hs-surface: #1f2228;
+    --hs-text: #e8eaee;
+    --hs-text-muted: #9aa1ad;
+    --hs-border: #343842;
+    --hs-done: #4fc3a1;
+    --hs-missed: #3b404a;
+    --hs-over: #f08a70;
+    --hs-focus: #8ab0ff;
+
+    --hs-color-green: #6fcf97;
+    --hs-color-blue: #8ab0ff;
+    --hs-color-purple: #b79cf0;
+    --hs-color-orange: #f2a65a;
+    --hs-color-red: #f28b82;
+    --hs-color-teal: #4fc3a1;
+
+    color-scheme: dark;
+  }
+}
