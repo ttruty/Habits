@@ -327,6 +327,14 @@ Append findings, surprises and as-built changes here, newest first.
   - The habit editor reorders with Up/Down buttons (keyboard-friendly) rather
     than drag and drop.
   - Not tested against a local Supabase stack (Docker wasn't running).
+    Checked on the hosted project (`mcqwdwrblaqezlvlynyn`, ca-central-1)
+    instead: signed-out reads and writes on all five tables get `permission
+    denied`; sign-up and magic links for unknown emails are refused; RLS is on
+    everywhere; `token_hash` isn't readable by signed-in users.
+  - `supabase/config.toml` keeps the hosted project's own values for MFA
+    (TOTP on), email OTP length (8) and resend interval (1 min). `supabase
+    init` defaults would otherwise switch them on `config push`. Always run
+    `config push` without `--yes` first and read the diff.
   - Supabase's built-in email sender allows only a few emails an hour. Fine for
     one user; set up custom SMTP if links stop arriving.
 
