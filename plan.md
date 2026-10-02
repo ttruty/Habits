@@ -315,6 +315,13 @@ entry" (see CLAUDE.md, rule 4).
 
 Append findings, surprises and as-built changes here, newest first.
 
+- _2026-10-02_: Withings' portal rejected the callback URL ("Fail to connect
+  to callback url … http status [405]"): it checks reachability with a HEAD,
+  and `oauth/<kind>/callback` only accepted GET. The callback now answers HEAD,
+  and a GET with no `state`/`code`/`error`, with 200; real callbacks are
+  unchanged. (The notification URL `oauth-webhook/withings` already answered
+  HEAD with 200.)
+
 - _2026-10-02_: Bug: connecting Withings failed with a CORS error. The shared
   `corsHeaders()` allowed only `authorization, content-type`, but supabase-js
   `functions.invoke` also sends `apikey` and `x-client-info`, so every

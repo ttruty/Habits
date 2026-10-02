@@ -68,8 +68,21 @@ Deno.serve(async (req) => {
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   if (!provider) return reply(404, { error: 'Unknown source' });
-  if (action === 'callback' && req.method === 'GET') {
-    return callback(kind, provider, new URL(req.url).searchParams);
+  if (action === 'callback') {
+    const params = new URL(req.url).searchParams;
+    // Providers check that the redirect URL is reachable before accepting it (Withings' portal
+    // sends a HEAD, or a GET with no parameters). Answer those with 200; only a real callback
+    // carries state.
+    if (req.method === 'HEAD') return new Response(null, { status: 200 });
+    if (
+      req.method === 'GET' &&
+      !params.has('state') &&
+      !params.has('code') &&
+      !params.has('error')
+    ) {
+      return page('Habits receives sign-ins here. Connect from Habits → Sources.', 200);
+    }
+    if (req.method === 'GET') return callback(kind, provider, params);
   }
   if (req.method !== 'POST') return reply(405, { error: 'Not found' });
 
