@@ -121,3 +121,21 @@ test('habit form has no accessibility violations', async ({ page }) => {
   await expect(page.getByLabel('Name')).toHaveValue('Listen 20m');
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
+
+test('connects an app and shows its token once, accessibly', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('./');
+  await page.getByRole('navigation').getByRole('button', { name: 'Sources' }).click();
+  await page.getByRole('button', { name: 'Connect an app' }).click();
+  await page.getByRole('button', { name: 'DeckFit', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Connect DeckFit' })).toBeFocused();
+  await expect(page.getByLabel('Token')).toHaveValue(/^hab_/);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page.getByRole('button', { name: 'Copy' }).last().click();
+  await expect(page.getByRole('status').filter({ hasText: 'Copied the token.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Added Workout.' })).toBeVisible();
+  await expect(page.getByText('Waiting for its first report')).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});

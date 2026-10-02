@@ -157,3 +157,17 @@ describe('demo provider writes', () => {
     await expect(p.deleteEvent('x')).rejects.toThrow('read-only');
   });
 });
+
+describe('demo ingest tokens', () => {
+  it('issues a token, revoking the previous one', async () => {
+    const p = createDemoProvider({ now: () => now });
+    const first = await p.issueIngestToken('s1');
+    const second = await p.issueIngestToken('s1');
+    expect(second).not.toBe(first);
+    const tokens = await p.listIngestTokens();
+    expect(tokens.filter((t) => !t.revokedAt)).toHaveLength(1);
+    await p.revokeIngestTokens('s1');
+    expect((await p.listIngestTokens()).every((t) => t.revokedAt)).toBe(true);
+    expect(p.ingestUrl).toContain('demo.invalid');
+  });
+});

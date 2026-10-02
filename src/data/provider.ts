@@ -2,6 +2,15 @@ import type { DateRange, Habit, HabitEvent, Source } from '../model';
 
 export type NewEvent = Omit<HabitEvent, 'id'>;
 
+/** An ingest token's metadata. The token itself is shown once and never stored. */
+export interface IngestToken {
+  id: string;
+  sourceId: string;
+  createdAt: string;
+  lastUsedAt?: string;
+  revokedAt?: string;
+}
+
 /** Everything the UI reads and writes. The demo and Supabase providers both implement it. */
 export interface DataProvider {
   /** False for read-only providers (embeds); their write methods throw. */
@@ -20,6 +29,13 @@ export interface DataProvider {
   /** Insert, or update the event with the same (sourceId, externalId). */
   putEvent(event: NewEvent): Promise<void>;
   deleteEvent(id: string): Promise<void>;
+
+  /** Where apps POST events; shown when connecting one. */
+  readonly ingestUrl: string;
+  listIngestTokens(): Promise<IngestToken[]>;
+  /** Revoke the source's tokens and return a new one. The caller shows it once. */
+  issueIngestToken(sourceId: string): Promise<string>;
+  revokeIngestTokens(sourceId: string): Promise<void>;
 }
 
 export class ReadOnlyError extends Error {

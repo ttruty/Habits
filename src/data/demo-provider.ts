@@ -1,6 +1,7 @@
 import type { DateKey, DateRange, Habit, HabitEvent, Source } from '../model';
 import { addDays, eachDay, inRange, localDateKey } from '../scoring/dates';
-import { ReadOnlyError, type DataProvider, type NewEvent } from './provider';
+import { ReadOnlyError, type DataProvider, type IngestToken, type NewEvent } from './provider';
+import { newIngestToken } from './tokens';
 
 // Fake data for the UI, the embed and tests: eight weeks up to today for five example habits.
 // Each day's events come from a seed made of the date, so a given day looks the same on every
@@ -191,6 +192,7 @@ interface Saved {
   habits: Habit[];
   sources: Source[];
   events: HabitEvent[];
+  tokens?: IngestToken[];
 }
 
 export interface DemoOptions {
@@ -231,8 +233,16 @@ export function createDemoProvider({
     }
   }
 
+  const revoke = (s: Saved, sourceId: string) => {
+    for (const t of (s.tokens ??= [])) {
+      if (t.sourceId === sourceId && !t.revokedAt) t.revokedAt = now().toISOString();
+    }
+  };
+
   return {
     canEdit: !readOnly,
+    // Demo tokens are never sent anywhere; this URL only fills the connect screen.
+    ingestUrl: 'https://demo.invalid/functions/v1/ingest',
     listSources: async () => [...sources, ...state().sources],
     listHabits: async () => structuredClone(state().habits),
     async listEvents(range: DateRange) {
@@ -273,6 +283,18 @@ export function createDemoProvider({
       write((s) => {
         s.events = s.events.filter((e) => e.id !== id);
       });
+    },
+    listIngestTokens: async () => structuredClone(state().tokens ?? []),
+    async issueIngestToken(sourceId) {
+      const token = newIngestToken();
+      write((s) => {
+        revoke(s, sourceId);
+        s.tokens!.push({ id: crypto.randomUUID(), sourceId, createdAt: now().toISOString() });
+      });
+      return token;
+    },
+    async revokeIngestTokens(sourceId) {
+      write((s) => revoke(s, sourceId));
     },
   };
 }

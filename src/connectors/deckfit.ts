@@ -1,10 +1,20 @@
 import type { Connector } from './types';
 
-// Event types only for now. Presets arrive with the connector itself (see plan.md).
+// DeckFit reports each game session when it ends: value = seconds, meta = { game, deck, outcome }.
+// outcome is 'finished' or 'abandoned'; the preset counts finished ones only.
 export const deckfit: Connector = {
   kind: 'deckfit',
   displayName: 'DeckFit',
   mode: 'push',
-  eventTypes: [{ type: 'workout.completed', unit: 'seconds', label: 'Workout finished' }],
-  presets: [],
+  eventTypes: [{ type: 'workout.completed', unit: 'seconds', label: 'Workout' }],
+  presets: [
+    {
+      name: 'Workout',
+      icon: '🏋️',
+      color: 'green',
+      match: { types: ['workout.completed'], where: { outcome: 'finished' } },
+      rule: { aggregate: 'count', atLeast: 1 },
+      target: { perWeek: 4 },
+    },
+  ],
 };

@@ -5,8 +5,9 @@ import { base } from '../styles/base';
 import './habit-editor';
 import './habit-scorecard';
 import './sign-in-form';
+import './source-list';
 
-type Page = 'scorecard' | 'habits';
+type Page = 'scorecard' | 'habits' | 'sources';
 
 /**
  * The standalone app: sign-in, then the scorecard or the habit list. Not part of the embed.
@@ -59,6 +60,7 @@ export class HabitsApp extends LitElement {
           signedIn && this.provider
             ? html`<nav aria-label="Pages">
                 ${this.navButton('scorecard', 'Scorecard')} ${this.navButton('habits', 'Habits')}
+                ${this.navButton('sources', 'Sources')}
                 ${
                   this.auth
                     ? html`<button type="button" @click=${() => this.auth!.signOut()}>
@@ -92,9 +94,14 @@ export class HabitsApp extends LitElement {
     if (!signedIn) {
       return html`<sign-in-form .auth=${this.auth!} .error=${this.linkError}></sign-in-form>`;
     }
-    return this.page === 'habits'
-      ? html`<habit-editor .provider=${this.provider}></habit-editor>`
-      : html`<habit-scorecard .provider=${this.provider}></habit-scorecard>`;
+    switch (this.page) {
+      case 'habits':
+        return html`<habit-editor .provider=${this.provider}></habit-editor>`;
+      case 'sources':
+        return html`<source-list .provider=${this.provider}></source-list>`;
+      default:
+        return html`<habit-scorecard .provider=${this.provider}></habit-scorecard>`;
+    }
   }
 
   static override styles = [
@@ -121,6 +128,7 @@ export class HabitsApp extends LitElement {
       }
       nav {
         display: flex;
+        flex-wrap: wrap;
         gap: calc(var(--hs-space) / 2);
       }
       nav [aria-current='page'] {

@@ -1,10 +1,19 @@
 import type { Connector } from './types';
 
-// Event types only for now. Presets arrive with the connector itself (see plan.md).
+// MindDrive reports a session when it plays to the end: value = its length in seconds.
 export const minddrive: Connector = {
   kind: 'minddrive',
   displayName: 'MindDrive',
   mode: 'push',
-  eventTypes: [{ type: 'meditation.completed', unit: 'seconds', label: 'Meditation finished' }],
-  presets: [],
+  eventTypes: [{ type: 'meditation.completed', unit: 'seconds', label: 'Session finished' }],
+  presets: [
+    {
+      name: 'Meditate',
+      icon: '🧘',
+      color: 'purple',
+      match: { types: ['meditation.completed'] },
+      rule: { aggregate: 'count', atLeast: 1 },
+      target: { perWeek: 7 },
+    },
+  ],
 };

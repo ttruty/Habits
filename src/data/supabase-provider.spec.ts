@@ -23,6 +23,7 @@ function fakeClient(results: { data?: unknown; error?: { message: string } | nul
     'update',
     'delete',
     'eq',
+    'is',
     'gte',
     'lte',
     'order',
@@ -46,6 +47,8 @@ function fakeClient(results: { data?: unknown; error?: { message: string } | nul
   } as unknown as SupabaseClient;
   return { client, calls };
 }
+
+const URL = 'https://ref.supabase.co/';
 
 const habit: Habit = {
   id: 'h1',
@@ -116,7 +119,7 @@ describe('createSupabaseProvider', () => {
   it('pages through events until a short page', async () => {
     const full = Array.from({ length: PAGE }, (_, i) => ({ ...eventRow, id: `e${i}` }));
     const { client, calls } = fakeClient([{ data: full }, { data: [eventRow] }]);
-    const events = await createSupabaseProvider(client).listEvents({
+    const events = await createSupabaseProvider(client, URL).listEvents({
       from: '2026-01-01',
       to: '2026-10-01',
     });
@@ -131,7 +134,7 @@ describe('createSupabaseProvider', () => {
 
   it('upserts events on (source_id, external_id)', async () => {
     const { client, calls } = fakeClient([{}]);
-    await createSupabaseProvider(client).putEvent(omitIdEvent());
+    await createSupabaseProvider(client, URL).putEvent(omitIdEvent());
     expect(calls).toContainEqual(['from', 'events']);
     expect(calls.find((c) => c[0] === 'upsert')?.[2]).toEqual({
       onConflict: 'source_id,external_id',
@@ -146,7 +149,7 @@ describe('createSupabaseProvider', () => {
       { data: { id: 's9', kind: 'manual', label: 'Manual', config: {}, created_at: 'T' } },
       {},
     ]);
-    const p = createSupabaseProvider(client);
+    const p = createSupabaseProvider(client, URL);
     await p.saveHabit(habit);
     await p.saveHabitOrder(['b', 'a']);
     const source = await p.addSource({ kind: 'manual', label: 'Manual', config: {} });
@@ -164,14 +167,16 @@ describe('createSupabaseProvider', () => {
       { data: [{ id: 's1', kind: 'manual', label: 'M', config: {}, created_at: 'T' }] },
       { data: [fromHabit(habit)] },
     ]);
-    const p = createSupabaseProvider(client);
+    const p = createSupabaseProvider(client, URL);
     expect((await p.listSources())[0].kind).toBe('manual');
     expect(await p.listHabits()).toEqual([habit]);
   });
 
   it('throws database errors', async () => {
     const { client } = fakeClient([{ error: { message: 'permission denied' } }]);
-    await expect(createSupabaseProvider(client).listHabits()).rejects.toThrow('permission denied');
+    await expect(createSupabaseProvider(client, URL).listHabits()).rejects.toThrow(
+      'permission denied',
+    );
   });
 });
 
@@ -180,3 +185,45 @@ function omitIdEvent() {
   void _id;
   return rest;
 }
+
+describe('ingest tokens', () => {
+  it('builds the ingest URL from the project URL', () => {
+    const { client } = fakeClient([]);
+    expect(createSupabaseProvider(client, URL).ingestUrl).toBe(
+      'https://ref.supabase.co/functions/v1/ingest',
+    );
+  });
+
+  it("revokes old tokens, then stores only the new token's hash", async () => {
+    const { client, calls } = fakeClient([{}, {}]);
+    const token = await createSupabaseProvider(client, URL).issueIngestToken('s1');
+    expect(token).toMatch(/^hab_/);
+    const update = calls.find((c) => c[0] === 'update');
+    expect(update?.[1]).toHaveProperty('revoked_at');
+    expect(calls).toContainEqual(['eq', 'source_id', 's1']);
+    expect(calls).toContainEqual(['is', 'revoked_at', null]);
+    const insert = calls.find((c) => c[0] === 'insert')?.[1] as Record<string, string>;
+    expect(insert.source_id).toBe('s1');
+    expect(insert.token_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(calls)).not.toContain(token);
+  });
+
+  it('lists token metadata and revokes', async () => {
+    const { client, calls } = fakeClient([
+      {
+        data: [
+          { id: 't1', source_id: 's1', created_at: 'C', last_used_at: null, revoked_at: null },
+          { id: 't0', source_id: 's1', created_at: 'B', last_used_at: 'U', revoked_at: 'R' },
+        ],
+      },
+      {},
+    ]);
+    const p = createSupabaseProvider(client, URL);
+    expect(await p.listIngestTokens()).toEqual([
+      { id: 't1', sourceId: 's1', createdAt: 'C' },
+      { id: 't0', sourceId: 's1', createdAt: 'B', lastUsedAt: 'U', revokedAt: 'R' },
+    ]);
+    await p.revokeIngestTokens('s1');
+    expect(calls.filter((c) => c[0] === 'update')).toHaveLength(1);
+  });
+});

@@ -26,5 +26,5 @@ if (demo) {
   app.linkError = linkErrorFromUrl(location.hash);
   const client = createClient(url, key);
   app.auth = supabaseAuth(client, new URL(import.meta.env.BASE_URL, location.origin).href);
-  app.provider = createSupabaseProvider(client);
+  app.provider = createSupabaseProvider(client, url);
 }

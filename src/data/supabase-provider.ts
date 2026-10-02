@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DateRange, Habit, HabitEvent, Source } from '../model';
-import type { DataProvider, NewEvent } from './provider';
+import type { DataProvider, IngestToken, NewEvent } from './provider';
+import { newIngestToken, sha256Hex } from './tokens';
 
 // Rows as stored (supabase/migrations). owner_id is filled by the database from the session.
 
@@ -113,9 +114,37 @@ function check({ data, error }: { data: unknown; error: { message: string } | nu
   return data;
 }
 
-export function createSupabaseProvider(db: SupabaseClient): DataProvider {
+export interface TokenRow {
+  id: string;
+  source_id: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+export function toToken(r: TokenRow): IngestToken {
+  return {
+    id: r.id,
+    sourceId: r.source_id,
+    createdAt: r.created_at,
+    ...(r.last_used_at ? { lastUsedAt: r.last_used_at } : {}),
+    ...(r.revoked_at ? { revokedAt: r.revoked_at } : {}),
+  };
+}
+
+export function createSupabaseProvider(db: SupabaseClient, supabaseUrl: string): DataProvider {
+  const revoke = async (sourceId: string) =>
+    check(
+      await db
+        .from('ingest_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('source_id', sourceId)
+        .is('revoked_at', null),
+    );
+
   return {
     canEdit: true,
+    ingestUrl: `${supabaseUrl.replace(/\/$/, '')}/functions/v1/ingest`,
 
     async listSources() {
       const rows = check(await db.from('sources').select('id,kind,label,config,created_at'));
@@ -178,6 +207,29 @@ export function createSupabaseProvider(db: SupabaseClient): DataProvider {
 
     async deleteEvent(id) {
       check(await db.from('events').delete().eq('id', id));
+    },
+
+    async listIngestTokens() {
+      const rows = check(
+        await db.from('ingest_tokens').select('id,source_id,created_at,last_used_at,revoked_at'),
+      );
+      return (rows as TokenRow[]).map(toToken);
+    },
+
+    async issueIngestToken(sourceId) {
+      await revoke(sourceId);
+      const token = newIngestToken();
+      // Insert only: the browser may write a hash but can't read one back (see the migration).
+      check(
+        await db
+          .from('ingest_tokens')
+          .insert({ source_id: sourceId, token_hash: await sha256Hex(token) }),
+      );
+      return token;
+    },
+
+    async revokeIngestTokens(sourceId) {
+      await revoke(sourceId);
     },
   };
 }

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { createDemoProvider } from '../data/demo-provider';
 import type { DataProvider } from '../data/provider';
 import type { Habit, HabitEvent, Source } from '../model';
 import { event, habit } from '../scoring/test-helpers';
@@ -14,31 +15,26 @@ function provider(
   sources: Source[] = [],
 ): DataProvider & { ranges: unknown[]; events: HabitEvent[] } {
   const ranges: unknown[] = [];
-  const store = { ranges, events: [...events] };
+  let stored = [...events];
   return {
-    ...store,
-    canEdit: true,
+    ...createDemoProvider(),
+    ranges,
     listSources: async () => sources,
     listHabits: async () => habits,
     listEvents: async (range) => {
       ranges.push(range);
-      return store.events.filter((e) => e.localDate >= range.from && e.localDate <= range.to);
+      return stored.filter((e) => e.localDate >= range.from && e.localDate <= range.to);
     },
-    addSource: async () => {
-      throw new Error('unused');
-    },
-    saveHabit: async () => {},
-    saveHabitOrder: async () => {},
     putEvent: async (e) => {
-      store.events.push({ ...e, id: `saved-${store.events.length}` });
+      stored.push({ ...e, id: `saved-${stored.length}` });
     },
     deleteEvent: async (id) => {
-      store.events = store.events.filter((e) => e.id !== id);
+      stored = stored.filter((e) => e.id !== id);
     },
     get events() {
-      return store.events;
+      return stored;
     },
-  } as DataProvider & { ranges: unknown[]; events: HabitEvent[] };
+  };
 }
 
 async function mount(p: DataProvider, attrs: Record<string, string> = {}) {
