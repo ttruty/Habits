@@ -163,7 +163,7 @@ export function createSupabaseProvider(db: SupabaseClient, supabaseUrl: string):
     oauth: true,
 
     async connectOAuth(kind, returnTo) {
-      const { data, error } = await db.functions.invoke(`${kind}-oauth/connect`, {
+      const { data, error } = await db.functions.invoke(`oauth/${kind}/connect`, {
         body: { returnTo },
       });
       if (error || typeof data?.url !== 'string') throw new Error("Couldn't start connecting");
@@ -171,7 +171,7 @@ export function createSupabaseProvider(db: SupabaseClient, supabaseUrl: string):
     },
 
     async disconnectOAuth(source) {
-      const { error } = await db.functions.invoke(`${source.kind}-oauth/disconnect`, {
+      const { error } = await db.functions.invoke(`oauth/${source.kind}/disconnect`, {
         body: { sourceId: source.id },
       });
       if (error) throw new Error("Couldn't disconnect");

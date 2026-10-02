@@ -261,7 +261,7 @@ describe('OAuth sources', () => {
       {},
     );
     await createSupabaseProvider(client, URL).listEvents({ from: '2026-09-01', to: '2026-10-01' });
-    expect(invoked).toEqual([['strava-oauth/sync', { body: { from: '2026-09-01' } }]]);
+    expect(invoked).toEqual([['oauth/strava/sync', { body: { from: '2026-09-01' } }]]);
   });
 
   it('still reads cached events when the refresh fails', async () => {
@@ -291,8 +291,8 @@ describe('OAuth sources', () => {
       createdAt: 'T',
     });
     expect(ok.invoked).toEqual([
-      ['strava-oauth/connect', { body: { returnTo: 'https://timtruty.com/Habits/' } }],
-      ['strava-oauth/disconnect', { body: { sourceId: 's9' } }],
+      ['oauth/strava/connect', { body: { returnTo: 'https://timtruty.com/Habits/' } }],
+      ['oauth/strava/disconnect', { body: { sourceId: 's9' } }],
     ]);
 
     const bad = withFunctions([], { error: new Error('503') });

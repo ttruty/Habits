@@ -5,6 +5,7 @@ import { minddrive } from './minddrive';
 import { strava } from './strava';
 import type { Connector } from './types';
 import { webhook } from './webhook';
+import { withings } from './withings';
 import { yarnbeard } from './yarnbeard';
 
 /** Every client-side connector. Adding a source = one connector file + one line here. */
@@ -14,6 +15,7 @@ export const connectors: readonly Connector[] = [
   minddrive,
   yarnbeard,
   strava,
+  withings,
   webhook,
 ];
 

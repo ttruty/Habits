@@ -1,16 +1,17 @@
-// Strava: pure parts (no network). API calls live in ../strava-api.ts.
+// Strava: pure parts (no network). The OAuth provider is ../oauth/strava.ts.
 
 import type { IngestEvent } from '../ingest.ts';
+import type { WebhookHint } from '../oauth/types.ts';
 import type { ServerConnector } from './types.ts';
 
 export const strava: ServerConnector = {
   kind: 'strava',
   ingest: false,
-  types: ['activity.created'],
   // An edited activity (new sport type, trimmed time) replaces the stored one.
   onConflict: 'update',
   // Strava API Policy §6.2: Strava data may be cached for at most 7 days.
   cacheDays: 7,
+  types: ['activity.created'],
 };
 
 /** Private ("Only You") activities count too, so the scorecard needs read_all. */
@@ -57,34 +58,6 @@ export function hasScope(granted: string | null, needed = STRAVA_SCOPE): boolean
     .includes(needed);
 }
 
-/** Cached rows expire this long after they were fetched. */
-export function expiresAt(now: Date, days = strava.cacheDays!): string {
-  return new Date(now.getTime() + days * 86_400_000).toISOString();
-}
-
-export const FRESH_MS = 6 * 3600_000;
-
-/**
- * What to fetch for a view of `from`…today: null when the last fetch covers it and is recent.
- * `after` (epoch seconds) starts a day early, because Strava filters by UTC and local days can
- * start up to 14 hours before UTC midnight.
- */
-export function syncWindow(
-  from: string,
-  last: { synced_from: string | null; synced_at: string | null },
-  now: Date,
-  freshMs = FRESH_MS,
-): { from: string; after: number } | null {
-  const fresh =
-    last.synced_at &&
-    last.synced_from &&
-    last.synced_from <= from &&
-    now.getTime() - Date.parse(last.synced_at) < freshMs;
-  if (fresh) return null;
-  const after = Math.floor(Date.parse(`${from}T00:00:00Z`) / 1000) - 86_400;
-  return { from, after };
-}
-
 /** The reply to Strava's subscription check (GET ?hub.mode=subscribe…), or null to refuse. */
 export function webhookChallenge(params: URLSearchParams, verifyToken: string): string | null {
   if (params.get('hub.mode') !== 'subscribe') return null;
@@ -92,48 +65,24 @@ export function webhookChallenge(params: URLSearchParams, verifyToken: string): 
   return params.get('hub.challenge');
 }
 
-export type WebhookAction =
-  | { kind: 'refresh'; athleteId: number; activityId: number }
-  | { kind: 'deauthorize'; athleteId: number }
-  | { kind: 'ignore' };
-
 /**
  * What a webhook POST asks for. Strava doesn't sign webhooks, so nothing in the payload is
  * trusted: every activity change (create, update or delete) becomes "refetch this activity from
  * Strava", which stores it, or deletes it if Strava no longer returns it.
  */
-export function parseWebhook(body: unknown): WebhookAction {
-  if (typeof body !== 'object' || body === null) return { kind: 'ignore' };
+export function parseWebhook(body: unknown): WebhookHint | null {
+  if (typeof body !== 'object' || body === null) return null;
   const b = body as Record<string, unknown>;
   const athleteId = Number(b.owner_id);
   const objectId = Number(b.object_id);
-  if (!Number.isSafeInteger(athleteId) || athleteId <= 0) return { kind: 'ignore' };
+  if (!Number.isSafeInteger(athleteId) || athleteId <= 0) return null;
+  const userId = String(athleteId);
   if (b.object_type === 'athlete') {
     const updates = b.updates as Record<string, unknown> | undefined;
-    return updates?.authorized === 'false'
-      ? { kind: 'deauthorize', athleteId }
-      : { kind: 'ignore' };
+    return updates?.authorized === 'false' ? { kind: 'deauthorize', userId } : null;
   }
   if (b.object_type === 'activity' && Number.isSafeInteger(objectId) && objectId > 0) {
-    return { kind: 'refresh', athleteId, activityId: objectId };
+    return { kind: 'item', userId, itemId: String(objectId) };
   }
-  return { kind: 'ignore' };
-}
-
-/** `url` if it's on an allowed origin (where to send the browser after connecting), else null. */
-export function safeReturnTo(url: unknown, allowedOrigins: readonly string[]): string | null {
-  if (typeof url !== 'string') return null;
-  try {
-    const u = new URL(url);
-    return allowedOrigins.includes(u.origin) ? u.href : null;
-  } catch {
-    return null;
-  }
-}
-
-/** `returnTo` with ?strava=<outcome> added, for the app to show what happened. */
-export function withOutcome(returnTo: string, outcome: string): string {
-  const u = new URL(returnTo);
-  u.searchParams.set('strava', outcome);
-  return u.href;
+  return null;
 }

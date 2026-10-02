@@ -188,31 +188,43 @@ connectors (allowed types, `onConflict`, later `normalize` and OAuth) live in
 `supabase/functions/_shared/connectors/<kind>.ts`. Both are registered in one
 `registry.ts` on each side.
 
-### Strava (as built, Phase 5)
+### OAuth sources: Strava, Withings (as built)
 
-- Tokens live in `strava_accounts` (RLS on, no policies, no grants to browser
-  roles): only Edge Functions read them. OAuth state is in `oauth_states`.
-- `strava-oauth`: `POST /connect` (owner JWT) creates the Strava source and
-  returns Strava's consent URL; `GET /callback` exchanges the code, needs scope
-  `activity:read_all` (private activities count), makes sure the webhook
-  subscription exists, backfills 60 days, and redirects to the app with
-  `?strava=connected|denied|missing-scope|failed`. `POST /sync { from }` refetches
-  `from`…today unless the last fetch covers it and is under 6 hours old.
-  `POST /disconnect` revokes at Strava and deletes the tokens and every cached
-  activity.
-- `strava-webhook`: answers Strava's subscription check with
-  `STRAVA_VERIFY_TOKEN`. Webhooks aren't signed, so a POST only ever triggers a
-  refetch of that activity with our token: stored if Strava returns it, deleted
-  if not. Deauthorization deletes everything.
+Adding an OAuth source = a provider in `supabase/functions/_shared/oauth/<kind>.ts`
+(implementing `OAuthProvider` in `oauth/types.ts`), a line in `oauth/registry.ts`,
+pure helpers in `_shared/connectors/<kind>.ts`, and a client descriptor with
+`mode: 'oauth'` and `syncPath: 'oauth/<kind>/sync'`. No new tables or functions.
+
+- Tokens live in `oauth_accounts` (`kind`, `external_user_id`; RLS on, no
+  policies, no grants to browser roles): only Edge Functions read them. OAuth
+  state is in `oauth_states`. Credentials are function secrets
+  `<KIND>_CLIENT_ID` / `<KIND>_CLIENT_SECRET`.
+- `oauth` function: `POST /oauth/<kind>/connect` (owner JWT) → consent URL;
+  `GET /oauth/<kind>/callback` → exchange, scope check, webhook subscription,
+  60-day backfill, redirect to the app with `?oauth=<kind>:connected|denied|missing-scope|failed`;
+  `POST /oauth/<kind>/sync { from }` refetches `from`…today unless fetched in
+  the last 6 hours (and reconciles: rows the provider no longer has are
+  deleted); `POST /oauth/<kind>/disconnect` releases at the provider and
+  deletes the tokens and every event from the source.
+- `oauth-webhook/<kind>`: the provider answers its own checks (Strava's
+  `hub.challenge` with `STRAVA_VERIFY_TOKEN`; Withings' HEAD). Neither signs
+  webhooks, so a POST is only a hint to refetch (one activity, or a span of
+  days) with our token; a forged POST can at most cause a refetch.
 - The client's `supabase-provider.listEvents` calls each connected OAuth
   source's `syncPath` before reading, and reads the cache even if that fails.
-- Events keep only `sport_type`, moving time (value, seconds) and distance
-  (meta, metres); `localDate` is the date part of `start_date_local`.
-- Attribution: `Connector.attribution`; the scorecard shows "Powered by Strava"
-  under the grid when a connected Strava source's habit is on screen (plain
-  text is allowed by Strava's brand guidelines).
-- Secrets: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_VERIFY_TOKEN`
-  (function secrets). Optional `HABITS_APP_ORIGINS` for return URLs and CORS.
+- **Strava:** `activity:read_all`; `activity.created`, value = moving time
+  (s), meta = `{ sport_type, distance }`, `localDate` from `start_date_local`.
+  API Policy §6.2: cached ≤ 7 days (`cacheDays: 7` → `events.expires_at`, daily
+  `pg_cron` purge). "Powered by Strava" under the grid (`Connector.attribution`).
+- **Withings:** scope `user.activity`; notifications appli 16 (activity: steps
+  and workouts). `workout.completed` (`externalId workout:<id>`, value =
+  end − start − pauses in seconds, meta = `{ category, distance?, steps? }`,
+  `localDate` = the workout's `date`) and `steps.day` (`steps:<date>`, value =
+  steps, updated as the day grows). Token requests use `client_secret` (no
+  signature needed); refresh tokens rotate on every refresh. No retention cap
+  is set: Withings' API terms couldn't be read automatically (403), so the
+  owner should check them; if they cap retention, set `cacheDays` on the
+  server connector.
 
 ---
 

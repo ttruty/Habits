@@ -18,11 +18,11 @@ interface Issued {
 }
 
 /** What came back from an OAuth round trip (?strava=…), in plain words. */
-const OAUTH_MESSAGES: Record<string, string> = {
-  denied: "Strava wasn't connected.",
-  'missing-scope':
-    'Strava was connected without permission to read your activities. Connect again and leave both boxes ticked.',
-  failed: "Couldn't connect Strava. Try again.",
+const OAUTH_MESSAGES: Record<string, (name: string) => string> = {
+  denied: (name) => `${name} wasn't connected.`,
+  'missing-scope': (name) =>
+    `${name} was connected without permission to read your activity. Connect again and allow everything it asks for.`,
+  failed: (name) => `Couldn't connect ${name}. Try again.`,
 };
 
 /** OAuth sources keep `connected` (and maybe a name) in their non-secret config. */
@@ -51,7 +51,7 @@ export class SourceList extends LitElement {
   declare now: () => Date;
   /** Sends the browser to a provider's sign-in page. Replaced in tests. */
   declare navigate: (url: string) => void;
-  /** The `?strava=` outcome after returning from Strava, if any. */
+  /** `<kind>:<outcome>` after returning from a provider's consent page (?oauth=…), if any. */
   declare oauthOutcome: string | undefined;
   declare private sources: Source[];
   declare private tokens: IngestToken[];
@@ -100,16 +100,16 @@ export class SourceList extends LitElement {
 
   /** Once, after loading: say how the OAuth round trip went, and offer habits if it worked. */
   private showOAuthOutcome() {
-    const outcome = this.oauthOutcome;
-    if (!outcome) return;
+    const [kind, outcome] = (this.oauthOutcome ?? '').split(':');
     this.oauthOutcome = undefined;
-    const source = this.sources.find((s) => s.kind === 'strava');
+    const connector = connectorFor(kind as Source['kind']);
+    if (!connector || !outcome) return;
+    const source = this.sources.find((s) => s.kind === connector.kind);
     if (outcome === 'connected' && source) {
-      const connector = connectorFor(source.kind);
-      this.issued = { source, presets: new Set(connector?.presets.map((_, i) => i)) };
+      this.issued = { source, presets: new Set(connector.presets.map((_, i) => i)) };
       this.focusNext = '#issued-heading';
     } else {
-      this.message = OAUTH_MESSAGES[outcome] ?? OAUTH_MESSAGES.failed;
+      this.message = (OAUTH_MESSAGES[outcome] ?? OAUTH_MESSAGES.failed)(connector.displayName);
     }
   }
 
@@ -390,7 +390,9 @@ export class SourceList extends LitElement {
 
   private renderOAuthDone(source: Source) {
     return html`<h2 id="issued-heading" tabindex="-1">${source.label} is connected</h2>
-      <p>Your last 60 days of activities are on their way. New ones arrive within a minute.</p>`;
+      <p>
+        Your last 60 days are on their way. New activity arrives as soon as ${source.label} has it.
+      </p>`;
   }
 
   private renderIssued(issued: Issued) {

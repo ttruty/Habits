@@ -1,7 +1,14 @@
 // Core model. See CLAUDE.md, "Core model".
 
 export type ConnectorKind =
-  'deckfit' | 'minddrive' | 'yarnbeard' | 'strava' | 'steam-windows' | 'webhook' | 'manual';
+  | 'deckfit'
+  | 'minddrive'
+  | 'yarnbeard'
+  | 'strava'
+  | 'withings'
+  | 'steam-windows'
+  | 'webhook'
+  | 'manual';
 
 export type Unit = 'count' | 'seconds' | 'meters' | 'pages' | 'percent';
 

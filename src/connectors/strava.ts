@@ -44,5 +44,5 @@ export const strava: Connector = {
     },
   ],
   attribution: { text: 'Powered by Strava', href: 'https://www.strava.com' },
-  syncPath: 'strava-oauth/sync',
+  syncPath: 'oauth/strava/sync',
 };

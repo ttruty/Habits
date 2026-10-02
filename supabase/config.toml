@@ -419,10 +419,11 @@ enabled = true
 [functions.ingest]
 verify_jwt = false
 
-# Strava's redirect carries no Supabase session; owner routes check the JWT themselves.
-[functions.strava-oauth]
+# OAuth sources (Strava, Withings). The provider's redirect carries no Supabase session; the owner
+# routes check the JWT themselves.
+[functions.oauth]
 verify_jwt = false
 
-# Called by Strava.
-[functions.strava-webhook]
+# Called by the providers.
+[functions.oauth-webhook]
 verify_jwt = false

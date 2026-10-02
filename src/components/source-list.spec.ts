@@ -244,7 +244,7 @@ describe('<source-list> with Strava', () => {
   it('offers the suggested habits after connecting', async () => {
     const p = live({ connected: true, athleteName: 'Tim' });
     const el = document.createElement('source-list');
-    el.oauthOutcome = 'connected';
+    el.oauthOutcome = 'strava:connected';
     el.provider = p;
     el.now = () => now;
     document.body.append(el);
@@ -261,9 +261,10 @@ describe('<source-list> with Strava', () => {
   });
 
   it.each([
-    ['denied', "Strava wasn't connected."],
-    ['missing-scope', 'Strava was connected without permission'],
-    ['something-else', "Couldn't connect Strava. Try again."],
+    ['strava:denied', "Strava wasn't connected."],
+    ['strava:missing-scope', 'Strava was connected without permission'],
+    ['strava:something-else', "Couldn't connect Strava. Try again."],
+    ['withings:denied', "Withings wasn't connected."],
   ])('explains the "%s" outcome', async (outcome, message) => {
     const el = document.createElement('source-list');
     el.oauthOutcome = outcome;
@@ -289,5 +290,39 @@ describe('<source-list> with Strava', () => {
     button(el, 'Reconnect Strava').click();
     await settle(el);
     expect(el.navigate).toHaveBeenCalled();
+  });
+});
+
+describe('<source-list> with Withings', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  it('offers steps and workouts after connecting, and ignores unknown sources', async () => {
+    const p = fresh();
+    const list = p.listSources;
+    const source = {
+      id: 'w1',
+      kind: 'withings' as const,
+      label: 'Withings',
+      config: { connected: true },
+      createdAt: 'T',
+    };
+    p.listSources = async () => [...(await list()), source];
+    const el = document.createElement('source-list');
+    el.oauthOutcome = 'withings:connected';
+    el.provider = p;
+    el.now = () => now;
+    document.body.append(el);
+    await settle(el);
+    expect(text($(el, '#issued-heading'))).toBe('Withings is connected');
+    expect(text($(el, 'fieldset'))).toContain('Steps');
+    expect(text($(el, 'fieldset'))).toContain('Workout (Withings)');
+
+    const other = document.createElement('source-list');
+    other.oauthOutcome = 'garmin:connected';
+    other.provider = p;
+    document.body.append(other);
+    await settle(other);
+    expect($(other, '#issued-heading')).toBeNull();
+    expect(text($(other, '.message'))).toBe('');
   });
 });

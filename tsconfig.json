@@ -17,6 +17,6 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "clients", "supabase/functions/_shared"],
-  "exclude": ["supabase/functions/_shared/strava-store.ts"]
+  "include": ["src", "clients", "supabase/functions/_shared", "supabase/functions/deno-env.d.ts"],
+  "exclude": ["supabase/functions/_shared/oauth/store.ts"]
 }

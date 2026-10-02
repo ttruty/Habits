@@ -31,7 +31,7 @@ export class HabitsApp extends LitElement {
   declare private page: Page;
 
   private unsubscribe?: () => void;
-  /** `?strava=<outcome>` after returning from Strava's consent page; handed to Sources once. */
+  /** `?oauth=<kind>:<outcome>` after a provider's consent page; handed to Sources once. */
   private oauthOutcome: string | undefined;
 
   constructor() {
@@ -59,11 +59,11 @@ export class HabitsApp extends LitElement {
   /** Open Sources after an OAuth round trip, and tidy the outcome out of the address bar. */
   private takeOAuthOutcome() {
     const params = new URLSearchParams(location.search);
-    const outcome = params.get('strava');
+    const outcome = params.get('oauth');
     if (!outcome) return;
     this.page = 'sources';
     this.oauthOutcome = outcome;
-    params.delete('strava');
+    params.delete('oauth');
     const query = params.toString();
     history.replaceState(
       null,

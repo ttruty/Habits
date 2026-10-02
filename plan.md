@@ -300,7 +300,7 @@ entry" (see CLAUDE.md, rule 4).
 | ----------------------------- | ---------------------------- | ------------------------------------------------------------ |
 | GitHub                        | OAuth / PAT poll             | contributions per day; easy                                  |
 | Todoist                       | OAuth + webhooks             | completed tasks with a label                                 |
-| Oura / Withings / Fitbit      | OAuth + webhooks             | sleep, steps; official APIs                                  |
+| Oura / Fitbit                 | OAuth + webhooks             | sleep, steps; official APIs (Withings: built, see Notes log)  |
 | Duolingo                      | none official                | use the webhook recipe                                       |
 | Goodreads / StoryGraph        | API closed                   | webhook or manual                                            |
 | Kindle (Android app)          | none                         | same Tasker/MacroDroid app-session recipe as Moon+           |
@@ -314,6 +314,24 @@ entry" (see CLAUDE.md, rule 4).
 ## Notes log
 
 Append findings, surprises and as-built changes here, newest first.
+
+- _2026-10-01_: **Withings** added (workouts and daily steps), outside the
+  phase plan at the owner's request.
+  - Adding it exposed that Phase 5's Strava code wasn't generic (its own table
+    and functions). Per rule 4, generalised before adding Withings:
+    `strava_accounts` → `oauth_accounts` (it was empty), `strava-oauth` /
+    `strava-webhook` → `oauth/<kind>/…` / `oauth-webhook/<kind>`, and an
+    `OAuthProvider` interface with Strava and Withings implementations. The old
+    functions were deleted. Nothing had been connected yet, so nothing moved.
+  - Withings facts were checked against its docs and two client libraries
+    (aiowithings, python_withings_api): token requests need only
+    `client_secret`; notification appli 16 covers steps *and* workouts (one
+    summary said 46, which is "user profile change"); callbacks get a HEAD
+    check first; workout categories are numbered (mapped to names like `run`).
+  - Withings' API terms page returns 403 to scripts, so retention limits are
+    unverified; Withings data is stored normally for now.
+  - Presets: Steps (≥ 8,000 a day, daily) and Workout (Withings) 3×/week. The
+    editor labels the steps amount "steps" (`eventTypes[].amountLabel`).
 
 - _2026-10-01_: Phase 5 (Strava) built before Phase 4, at the owner's request.
   - **Strava's API Policy §6.2 caps caching Strava data at 7 days.** No

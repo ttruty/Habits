@@ -6,7 +6,7 @@ import { base } from '../styles/base';
 import {
   COLORS,
   NEW_MANUAL,
-  displayUnit,
+  amountUnit,
   draftFromHabit,
   eventTypesFor,
   habitFromDraft,
@@ -299,7 +299,7 @@ export class HabitEditor extends LitElement {
     const original = this.habits.find((h) => h.id === d.id);
     const manual = isManualSource(d.sourceId, this.sources);
     const types = eventTypesFor(d.sourceId, this.sources);
-    const unit = displayUnit(unitOf(d, this.sources));
+    const unit = amountUnit(d, this.sources);
     const hasManual = this.sources.some((s) => s.kind === 'manual');
     const err = (key: keyof DraftErrors) =>
       this.errors[key]

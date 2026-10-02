@@ -144,7 +144,7 @@ describe('returning from Strava', () => {
   });
 
   it('opens Sources with the outcome, once, and tidies the address bar', async () => {
-    history.replaceState(null, '', '/?keep=1&strava=denied#x');
+    history.replaceState(null, '', '/?keep=1&oauth=strava:denied#x');
     const app = await mount({ provider: createDemoProvider() });
     expect(location.search).toBe('?keep=1');
     expect(location.hash).toBe('#x');

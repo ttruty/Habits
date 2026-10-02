@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Habit, Source } from '../model';
 import {
   NEW_MANUAL,
+  amountUnit,
   displayUnit,
   draftFromHabit,
   eventTypesFor,
@@ -22,6 +23,7 @@ const sources = [
   src('y', 'yarnbeard'),
   src('s', 'strava'),
   src('x', 'deckfit'),
+  src('w', 'withings'),
 ];
 const today = '2026-10-01';
 
@@ -151,4 +153,12 @@ describe('units and event types', () => {
     expect(eventTypesFor(NEW_MANUAL, sources).map((t) => t.type)).toEqual(['check-in']);
     expect(eventTypesFor('nope', sources)).toEqual([]);
   });
+});
+
+it('labels the amount from the event type, e.g. steps', () => {
+  expect(amountUnit({ sourceId: 'w', type: 'steps.day' }, sources)).toEqual({
+    label: 'steps',
+    factor: 1,
+  });
+  expect(amountUnit({ sourceId: 'w', type: 'workout.completed' }, sources).label).toBe('minutes');
 });

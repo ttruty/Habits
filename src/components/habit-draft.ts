@@ -59,6 +59,13 @@ export function unitOf(draft: Pick<Draft, 'sourceId' | 'type'>, sources: readonl
   return eventTypesFor(draft.sourceId, sources).find((t) => t.type === draft.type)?.unit;
 }
 
+/** The amount field's label and factor for this draft's event type. */
+export function amountUnit(draft: Pick<Draft, 'sourceId' | 'type'>, sources: readonly Source[]) {
+  const type = eventTypesFor(draft.sourceId, sources).find((t) => t.type === draft.type);
+  const unit = displayUnit(type?.unit);
+  return type?.amountLabel ? { ...unit, label: type.amountLabel } : unit;
+}
+
 /** A blank draft for a new habit: hand-ticked, daily, starting today. */
 export function newDraft(id: string, sources: readonly Source[], today: DateKey): Draft {
   const manual = sources.find((s) => s.kind === 'manual');
