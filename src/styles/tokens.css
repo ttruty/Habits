@@ -26,9 +26,15 @@
   --hs-color-green: #2e7d4f;
   --hs-color-blue: #2b5fd9;
   --hs-color-purple: #7448c2;
-  --hs-color-orange: #c25a12;
+  --hs-color-orange: #b5530f;
   --hs-color-red: #b3261e;
   --hs-color-teal: #1f6f5c;
+
+  /* Text on a solid habit colour, and the strongest tint's mix and text (minutes in squares).
+     Chosen for WCAG AA 4.5:1 with every habit colour. */
+  --hs-on-habit: #ffffff;
+  --hs-level3-mix: 70%;
+  --hs-level3-ink: var(--hs-text);
 
   color-scheme: light;
 }
@@ -51,6 +57,10 @@
   --hs-color-red: #f28b82;
   --hs-color-teal: #4fc3a1;
 
+  --hs-on-habit: #15171b;
+  --hs-level3-mix: 80%;
+  --hs-level3-ink: var(--hs-on-habit);
+
   color-scheme: dark;
 }
 
@@ -72,6 +82,10 @@
     --hs-color-orange: #f2a65a;
     --hs-color-red: #f28b82;
     --hs-color-teal: #4fc3a1;
+
+    --hs-on-habit: #15171b;
+    --hs-level3-mix: 80%;
+    --hs-level3-ink: var(--hs-on-habit);
 
     color-scheme: dark;
   }

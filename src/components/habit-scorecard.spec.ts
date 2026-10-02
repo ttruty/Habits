@@ -129,7 +129,9 @@ describe('<habit-scorecard>', () => {
     const summaries = $$(card, 'tbody td.summary').map(text);
     expect(summaries[0]).toBe('45m');
     expect(summaries[1]).toContain('no streak');
-    expect(text($$(card, 'tbody td.cell')[1])).toContain('45m');
+    // Minutes go inside the square, not beside it.
+    expect(text($$(card, 'tbody td.cell')[1].querySelector('.mark.minutes'))).toBe('45');
+    expect($$(card, 'tbody td.cell')[1].querySelector('.value')).toBeNull();
   });
 
   it('loads a year of history for streaks', async () => {
@@ -290,6 +292,48 @@ describe('hand-ticked habits', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     await settle(card);
     expect(p.ranges.length).toBe(before + 1);
+  });
+});
+
+describe('minutes in the square', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  const listen = habit({
+    id: 'listen',
+    match: { types: ['listening.day'] },
+    rule: { aggregate: 'sum', atLeast: 1200 },
+  });
+  const day = (date: string, seconds: number, unit: 'seconds' | 'meters' = 'seconds') =>
+    event(date, { type: 'listening.day', value: seconds, unit });
+  const marks = (card: HabitScorecard) =>
+    $$(card, 'tbody td.cell').map((td) => td.querySelector('.mark')!);
+
+  it('shows the minutes inside a done day of a minute habit', async () => {
+    const card = await mount(provider([listen], [day('2026-09-28', 1500), day('2026-09-29', 600)]));
+    const [mon, tue] = marks(card);
+    expect(mon.classList).toContain('minutes');
+    expect(text(mon)).toBe('25');
+    // Not done: still the plain "missed" dot, no number.
+    expect(tue.classList).not.toContain('minutes');
+    expect(text(tue)).toBe('');
+  });
+
+  it('rounds tiny amounts up to 1 rather than 0', async () => {
+    const quick = habit({ ...listen, rule: { aggregate: 'sum', atLeast: 10 } });
+    const card = await mount(provider([quick], [day('2026-09-28', 20)]));
+    expect(text(marks(card)[0])).toBe('1');
+  });
+
+  it('keeps plain marks for count habits, other units, and the month view', async () => {
+    const counted = await mount(provider([habit()], [event('2026-09-28')]));
+    expect(marks(counted)[0].classList).not.toContain('minutes');
+
+    const km = habit({ ...listen, rule: { aggregate: 'sum', atLeast: 1000 } });
+    const distance = await mount(provider([km], [day('2026-09-28', 5000, 'meters')]));
+    expect(marks(distance)[0].classList).not.toContain('minutes');
+
+    const month = await mount(provider([listen], [day('2026-09-28', 1500)]), { view: 'month' });
+    expect($$(month, 'tbody .mark.minutes')).toHaveLength(0);
   });
 });
 

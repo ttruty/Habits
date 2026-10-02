@@ -315,6 +315,14 @@ entry" (see CLAUDE.md, rule 4).
 
 Append findings, surprises and as-built changes here, newest first.
 
+- _2026-10-02_: Minute habits (unit seconds) show their minutes **inside** the
+  square on done days, and tracked-only minute habits put the number inside
+  their tinted square instead of beside it (week view; month view keeps plain
+  marks). Metric tints are now `color-mix` backgrounds, not opacity. New tokens
+  `--hs-on-habit`, `--hs-level3-mix`, `--hs-level3-ink` keep the number at
+  WCAG AA in both themes (computed for every habit colour); light orange
+  darkened to `#b5530f` (white text was 4.4:1). axe clean in light and dark.
+
 - _2026-10-02_: CI failed on the last two pushes (CORS and callback fixes)
   and went unnoticed: a new test tripped ESLint's `no-unexpected-multiline`
   after Prettier wrapped it, and only the tests had been run locally. The

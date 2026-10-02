@@ -553,6 +553,7 @@ export class HabitScorecard extends LitElement {
         border-radius: 0;
         background: transparent;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
       }
@@ -609,14 +610,36 @@ export class HabitScorecard extends LitElement {
         background: transparent;
         border: 1px solid var(--hs-border);
       }
+      /* Tints, not opacity, so a number inside stays readable. */
       .mark.level-1 {
-        opacity: 0.3;
+        background: color-mix(in srgb, var(--hs-habit) 25%, var(--hs-bg));
       }
       .mark.level-2 {
-        opacity: 0.5;
+        background: color-mix(in srgb, var(--hs-habit) 45%, var(--hs-bg));
       }
       .mark.level-3 {
-        opacity: 0.75;
+        background: color-mix(in srgb, var(--hs-habit) var(--hs-level3-mix), var(--hs-bg));
+      }
+
+      /* Minutes inside the square (minute habits, week view). */
+      .mark.minutes {
+        width: auto;
+        min-width: 1.375rem;
+        height: 1.375rem;
+        padding: 0 0.2rem;
+        border-radius: 5px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: var(--hs-text);
+      }
+      .mark.done.minutes,
+      .mark.level-4.minutes {
+        color: var(--hs-on-habit);
+      }
+      .mark.level-3.minutes {
+        color: var(--hs-level3-ink);
       }
       .value {
         display: block;

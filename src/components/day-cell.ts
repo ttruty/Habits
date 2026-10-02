@@ -67,12 +67,22 @@ export function dayCell(
       </button>
     </td>`;
   }
+  // Minute habits show their minutes inside the square on done days (and on tracked-only days),
+  // when there's room for a number (week view, not month).
+  const minutes =
+    opts.unit === 'seconds' &&
+    opts.showValue &&
+    cell.value > 0 &&
+    (cell.state === 'done' || metric);
+  const inside = over ? '✕' : minutes ? String(Math.max(1, Math.round(cell.value / 60))) : '';
   const content = html`<span
-      class="mark ${mark} ${metric ? `level-${level(cell.value, opts.max)}` : ''}"
+      class="mark ${mark} ${metric ? `level-${level(cell.value, opts.max)}` : ''} ${
+        minutes ? 'minutes' : ''
+      }"
       aria-hidden="true"
-      >${over ? '✕' : ''}</span
+      >${inside}</span
     >${
-      metric && opts.showValue && cell.value > 0
+      metric && opts.showValue && cell.value > 0 && !minutes
         ? html`<span class="value" aria-hidden="true">${formatValue(cell.value, opts.unit)}</span>`
         : ''
     }`;
