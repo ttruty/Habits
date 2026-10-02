@@ -218,8 +218,9 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Single user: no sign-ups (see [auth]).
-enable_signup = false
+# Despite the name, this switches the email provider on or off; false disables magic links too.
+# Sign-ups are blocked by [auth] enable_signup = false.
+enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true

@@ -335,6 +335,9 @@ Append findings, surprises and as-built changes here, newest first.
     (TOTP on), email OTP length (8) and resend interval (1 min). `supabase
     init` defaults would otherwise switch them on `config push`. Always run
     `config push` without `--yes` first and read the diff.
+  - Trap: `[auth.email] enable_signup` turns the **email provider** on or off.
+    Setting it to `false` broke magic links ("Email logins are disabled", 422).
+    It must stay `true`; `[auth] enable_signup = false` is what blocks sign-ups.
   - Supabase's built-in email sender allows only a few emails an hour. Fine for
     one user; set up custom SMTP if links stop arriving.
 
