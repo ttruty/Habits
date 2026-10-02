@@ -28,3 +28,9 @@ if (demo) {
   app.auth = supabaseAuth(client, new URL(import.meta.env.BASE_URL, location.origin).href);
   app.provider = createSupabaseProvider(client, url);
 }
+
+// The app shell works offline once installed (scripts/build-sw.mjs). Production only: in dev the
+// service worker would serve stale modules.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => undefined);
+}

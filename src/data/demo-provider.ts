@@ -28,9 +28,12 @@ const sources: Source[] = [
 ];
 
 function habits(today: DateKey): Habit[] {
+  // The demo has DAYS of history; a habit "started" then, so earlier days aren't missed.
+  const started = addDays(today, -(DAYS - 1));
   return [
     {
       id: 'demo-workout',
+      startDate: started,
       name: 'Workout',
       icon: '🏋️',
       color: 'green',
@@ -41,6 +44,7 @@ function habits(today: DateKey): Habit[] {
     },
     {
       id: 'demo-meditate',
+      startDate: started,
       name: 'Meditate',
       icon: '🧘',
       color: 'purple',
@@ -51,6 +55,7 @@ function habits(today: DateKey): Habit[] {
     },
     {
       id: 'demo-listen',
+      startDate: started,
       name: 'Listen 20m',
       icon: '🎧',
       color: 'blue',
@@ -61,6 +66,7 @@ function habits(today: DateKey): Habit[] {
     },
     {
       id: 'demo-run',
+      startDate: started,
       name: 'Run',
       icon: '🏃',
       color: 'orange',
@@ -276,6 +282,9 @@ export function createDemoProvider({
       write((s) => {
         for (const h of s.habits) if (ids.includes(h.id)) h.sort = ids.indexOf(h.id);
       });
+    },
+    async putEvents(events: NewEvent[]) {
+      for (const e of events) await this.putEvent(e);
     },
     async putEvent(event: NewEvent) {
       write((s) => {

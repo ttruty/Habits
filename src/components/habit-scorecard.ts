@@ -16,13 +16,24 @@ import {
   toLocalNoon,
   type Weekday,
 } from '../scoring/dates';
-import { buildScorecard } from '../scoring/scorecard';
+import { buildScorecard, type ScoreRow } from '../scoring/scorecard';
+import { heatLevel, heatSummary } from '../scoring/heatmap';
+import { cellStatus } from './day-cell';
+import { formatValue } from '../format';
 import { countsFor, dedupe } from '../scoring/score';
 import { base } from '../styles/base';
 import { scoreRow } from './score-row';
 
 export type Theme = 'auto' | 'light' | 'dark';
-export type View = 'week' | 'month';
+export type View = 'week' | 'month' | 'heatmap';
+
+/** The heatmap view's span. */
+const HEAT_WEEKS = 12;
+const VIEWS: { view: View; label: string; unit: string }[] = [
+  { view: 'week', label: 'Week', unit: 'week' },
+  { view: 'month', label: 'Month', unit: 'month' },
+  { view: 'heatmap', label: '12 weeks', unit: '12 weeks' },
+];
 
 /** How far back events are loaded, so streaks can reach past the visible range. */
 const HISTORY_DAYS = 365;
@@ -124,7 +135,7 @@ export class HabitScorecard extends LitElement {
     const anchor = this.anchor ?? this.todayKey;
     if (this.view === 'month') return monthRange(anchor);
     const to = addDays(startOfWeek(anchor, this.weekStartsOn), 6);
-    const weeks = Math.max(1, Math.trunc(this.weeks) || 1);
+    const weeks = this.view === 'heatmap' ? HEAT_WEEKS : Math.max(1, Math.trunc(this.weeks) || 1);
     return { from: addDays(to, 1 - 7 * weeks), to };
   }
 
@@ -231,10 +242,9 @@ export class HabitScorecard extends LitElement {
 
   private step(direction: -1 | 1) {
     const anchor = this.anchor ?? this.todayKey;
+    const weeks = this.view === 'heatmap' ? HEAT_WEEKS : Math.max(1, Math.trunc(this.weeks) || 1);
     this.anchor =
-      this.view === 'month'
-        ? addMonths(anchor, direction)
-        : addDays(anchor, direction * 7 * Math.max(1, Math.trunc(this.weeks) || 1));
+      this.view === 'month' ? addMonths(anchor, direction) : addDays(anchor, direction * 7 * weeks);
   }
 
   private setView(view: View) {
@@ -255,7 +265,7 @@ export class HabitScorecard extends LitElement {
     const today = this.todayKey;
     const range = this.range;
     const current = range.from <= today && today <= range.to;
-    const unit = this.view === 'month' ? 'month' : 'week';
+    const unit = VIEWS.find((v) => v.view === this.view)?.unit ?? 'week';
     const label = this.rangeLabel(range);
 
     return html`
@@ -279,14 +289,14 @@ export class HabitScorecard extends LitElement {
           </button>
         </div>
         <div class="toggle" role="group" aria-label="View">
-          ${(['week', 'month'] as const).map(
-            (v) =>
+          ${VIEWS.map(
+            ({ view, label }) =>
               html`<button
                 type="button"
-                aria-pressed=${this.view === v ? 'true' : 'false'}
-                @click=${() => this.setView(v)}
+                aria-pressed=${this.view === view ? 'true' : 'false'}
+                @click=${() => this.setView(view)}
               >
-                ${v === 'week' ? 'Week' : 'Month'}
+                ${label}
               </button>`,
           )}
         </div>
@@ -311,6 +321,7 @@ export class HabitScorecard extends LitElement {
     const days = eachDay(range);
     const dayLabel = (d: DateKey) =>
       formatDate(d, { weekday: 'long', day: 'numeric', month: 'long' });
+    if (this.view === 'heatmap') return this.renderHeatmap(rows, dayLabel);
     const toggleFor = (habit: Habit) => {
       const source = this.provider.canEdit ? manualSourceOf(habit, this.sources) : undefined;
       return source && ((date: DateKey) => void this.toggle(habit, source, date));
@@ -363,6 +374,52 @@ export class HabitScorecard extends LitElement {
       </div>
       ${this.renderAttribution(rows.map((r) => r.habit))} ${this.renderDayDialog(dayLabel)}
       ${this.notice ? html`<p class="status error" role="alert">${this.notice}</p>` : nothing}`;
+  }
+
+  /** One small grid per habit: weeks across, weekdays down, shaded by how the day went. */
+  private renderHeatmap(rows: ScoreRow[], dayLabel: (d: DateKey) => string) {
+    const weekdays = eachDay({ from: rows[0].cells[0].date, to: rows[0].cells[6].date }).map((d) =>
+      formatDate(d, { weekday: 'narrow' }),
+    );
+    return html`<div class="heatmaps">
+        ${rows.map((row) => {
+          const { habit, cells, unit } = row;
+          const max = Math.max(0, ...cells.map((c) => c.value));
+          const s = heatSummary(cells);
+          const metric = habit.rule.atLeast === undefined && habit.rule.atMost === undefined;
+          const pct = s.days ? Math.round((s.done / s.days) * 100) : 0;
+          const stats = metric
+            ? `${formatValue(s.total, unit)} in total, ${formatValue(
+                s.days ? Math.round(s.total / s.days) : 0,
+                unit,
+              )} a day`
+            : `${s.done} of ${s.days} days · ${pct}%${s.bestRun > 1 ? ` · best run ${s.bestRun}` : ''}`;
+          const spoken = metric
+            ? `${habit.name}, last 12 weeks: ${formatValue(s.total, unit, 'long')} in total.`
+            : `${habit.name}, last 12 weeks: done ${s.done} of ${s.days} days, ${pct}%. Best run ${s.bestRun} ${s.bestRun === 1 ? 'day' : 'days'}.`;
+          return html`<section
+            class="heat"
+            style="--hs-habit: var(--hs-color-${habit.color}, var(--hs-done))"
+          >
+            <h3><span class="icon" aria-hidden="true">${habit.icon}</span>${habit.name}</h3>
+            <div class="heat-grid" role="img" aria-label=${spoken}>
+              ${weekdays.map(
+                (w, i) =>
+                  html`<span class="heat-day" aria-hidden="true">${i % 2 === 0 ? w : ''}</span>`,
+              )}
+              ${cells.map((c) => {
+                const level = heatLevel(habit, c, max);
+                return html`<span
+                  class="heat-cell l-${level}"
+                  title="${dayLabel(c.date)}: ${cellStatus(habit, c, unit)}"
+                ></span>`;
+              })}
+            </div>
+            <p class="heat-stats" aria-hidden="true">${stats}</p>
+          </section>`;
+        })}
+      </div>
+      ${this.renderAttribution(rows.map((r) => r.habit))}`;
   }
 
   /** Credit required by a source's terms ("Powered by Strava") when its data is on screen. */
@@ -446,9 +503,12 @@ export class HabitScorecard extends LitElement {
         /* Contains the absolutely positioned .sr labels, which would otherwise widen the page. */
         position: relative;
       }
+      /* Natural width: on a wide screen the Week and Streak columns don't stretch apart. On a
+         phone it fills the width anyway. */
       table {
         border-collapse: collapse;
-        width: 100%;
+        width: auto;
+        min-width: min(100%, 30rem);
       }
       th,
       td {
@@ -511,6 +571,71 @@ export class HabitScorecard extends LitElement {
         color: var(--hs-text-muted);
         font-size: 0.8em;
         margin-left: 1px;
+      }
+
+      /* 12-week heatmaps */
+      .heatmaps {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+        gap: calc(var(--hs-space) * 2) calc(var(--hs-space) * 3);
+      }
+      .heat h3 {
+        font-size: 0.9375rem;
+        font-weight: 500;
+        margin: 0 0 calc(var(--hs-space) / 2);
+      }
+      /* Weekday labels, then 12 week columns, filling the card's width. */
+      .heat-grid {
+        display: grid;
+        grid-template-columns: auto repeat(12, 1fr);
+        grid-template-rows: repeat(7, auto);
+        grid-auto-flow: column;
+        gap: 3px;
+        max-width: 24rem;
+      }
+      .heat-day {
+        font-size: 0.625rem;
+        line-height: 1;
+        color: var(--hs-text-muted);
+        align-self: center;
+        padding-right: 2px;
+      }
+      .heat-cell {
+        aspect-ratio: 1;
+        border-radius: 2px;
+        background: var(--hs-surface);
+        box-shadow: inset 0 0 0 1px var(--hs-border);
+      }
+      .heat-cell.l-1 {
+        background: color-mix(in srgb, var(--hs-habit) 25%, var(--hs-bg));
+        box-shadow: none;
+      }
+      .heat-cell.l-2 {
+        background: color-mix(in srgb, var(--hs-habit) 45%, var(--hs-bg));
+        box-shadow: none;
+      }
+      .heat-cell.l-3 {
+        background: color-mix(in srgb, var(--hs-habit) var(--hs-level3-mix), var(--hs-bg));
+        box-shadow: none;
+      }
+      .heat-cell.l-4 {
+        background: var(--hs-habit);
+        box-shadow: none;
+      }
+      .heat-cell.l-over {
+        background: var(--hs-over);
+        box-shadow: none;
+      }
+      .heat-cell.l-inactive,
+      .heat-cell.l-future {
+        background: transparent;
+        box-shadow: inset 0 0 0 1px var(--hs-border);
+        opacity: 0.4;
+      }
+      .heat-stats {
+        margin: calc(var(--hs-space) / 2) 0 0;
+        font-size: 0.8125rem;
+        color: var(--hs-text-muted);
       }
 
       dialog {

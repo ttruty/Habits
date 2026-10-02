@@ -167,3 +167,44 @@ test('corrects a missed day through an accessible dialog', async ({ page }) => {
   const fixed = row.getByRole('button', { name: `${label}: done` });
   await expect(fixed).toBeFocused();
 });
+
+test('installs as a PWA and reloads offline', async ({ page, context }) => {
+  await page.goto('./');
+  const manifest = await page.locator('link[rel=manifest]').getAttribute('href');
+  const res = await page.request.get(new URL(manifest!, page.url()).href);
+  expect((await res.json()).icons).toHaveLength(3);
+
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload(); // now controlled by the service worker
+  await expect(card(page).getByRole('table')).toBeVisible();
+
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Habits', level: 1 })).toBeVisible();
+  await expect(card(page).getByRole('table')).toBeVisible();
+  await context.setOffline(false);
+});
+
+test('every page and view has no accessibility violations, in light and dark', async ({ page }) => {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+    await page.goto('./');
+    const nav = page.getByRole('navigation', { name: 'Pages' });
+    for (const view of ['Week', 'Month', '12 weeks']) {
+      await card(page).getByRole('button', { name: view, exact: true }).click();
+      await expect(card(page).getByRole('button', { name: view, exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      const v = (await new AxeBuilder({ page }).analyze()).violations;
+      expect(v, `${colorScheme} ${view}`).toEqual([]);
+    }
+    for (const name of ['Habits', 'Sources', 'Data']) {
+      await nav.getByRole('button', { name }).click();
+      await expect(nav.getByRole('button', { name })).toHaveAttribute('aria-current', 'page');
+      await expect(page).toHaveTitle(`${name} · Habits`);
+      const v = (await new AxeBuilder({ page }).analyze()).violations;
+      expect(v, `${colorScheme} ${name}`).toEqual([]);
+    }
+  }
+});

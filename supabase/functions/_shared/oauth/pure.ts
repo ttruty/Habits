@@ -1,5 +1,8 @@
 // Provider-independent OAuth helpers (pure; no network or database).
 
+import { StravaError } from '../strava-api.ts';
+import { WithingsError } from '../withings-api.ts';
+
 /** Cached rows expire this long after they were fetched (for connectors with cacheDays). */
 export function expiresAt(now: Date, days: number): string {
   return new Date(now.getTime() + days * 86_400_000).toISOString();
@@ -39,6 +42,16 @@ export function withOutcome(returnTo: string, kind: string, outcome: string): st
   const u = new URL(returnTo);
   u.searchParams.set('oauth', `${kind}:${outcome}`);
   return u.href;
+}
+
+/**
+ * Whether a token-refresh error means access is gone for good (revoked, or the refresh token
+ * expired), as opposed to a hiccup worth retrying. Only these mark a source "needs reconnecting".
+ */
+export function isAuthFailure(e: unknown): boolean {
+  if (e instanceof StravaError) return e.status === 400 || e.status === 401;
+  if (e instanceof WithingsError) return e.status === 401;
+  return false;
 }
 
 /** 'YYYY-MM-DD' of a UTC instant, shifted by `days`. */

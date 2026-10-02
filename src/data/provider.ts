@@ -28,6 +28,8 @@ export interface DataProvider {
   saveHabitOrder(ids: string[]): Promise<void>;
   /** Insert, or update the event with the same (sourceId, externalId). */
   putEvent(event: NewEvent): Promise<void>;
+  /** putEvent for many at once (imports). */
+  putEvents(events: NewEvent[]): Promise<void>;
   deleteEvent(id: string): Promise<void>;
 
   /** Whether OAuth sources (Strava) can be connected; false in demo mode. */

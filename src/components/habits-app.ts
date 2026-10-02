@@ -1,13 +1,22 @@
 import { LitElement, css, html, nothing } from 'lit';
 import type { Auth } from '../data/auth';
+import { sourceAlerts, type SourceAlert } from '../data/alerts';
 import type { DataProvider } from '../data/provider';
 import { base } from '../styles/base';
+import './data-page';
 import './habit-editor';
 import './habit-scorecard';
 import './sign-in-form';
 import './source-list';
 
-type Page = 'scorecard' | 'habits' | 'sources';
+type Page = 'scorecard' | 'habits' | 'sources' | 'data';
+
+const PAGES: { page: Page; label: string }[] = [
+  { page: 'scorecard', label: 'Scorecard' },
+  { page: 'habits', label: 'Habits' },
+  { page: 'sources', label: 'Sources' },
+  { page: 'data', label: 'Data' },
+];
 
 /**
  * The standalone app: sign-in, then the scorecard or the habit list. Not part of the embed.
@@ -20,6 +29,7 @@ export class HabitsApp extends LitElement {
     linkError: { attribute: false },
     email: { state: true },
     page: { state: true },
+    alerts: { state: true },
   };
 
   declare provider: DataProvider | undefined;
@@ -29,6 +39,8 @@ export class HabitsApp extends LitElement {
   /** Signed-in email; undefined while checking, null when signed out. */
   declare private email: string | null | undefined;
   declare private page: Page;
+  /** Sources needing attention, shown above the scorecard. */
+  declare private alerts: SourceAlert[];
 
   private unsubscribe?: () => void;
   /** `?oauth=<kind>:<outcome>` after a provider's consent page; handed to Sources once. */
@@ -37,8 +49,33 @@ export class HabitsApp extends LitElement {
   constructor() {
     super();
     this.page = 'scorecard';
+    this.alerts = [];
     this.takeOAuthOutcome();
     this.linkError = '';
+  }
+
+  protected override updated(changed: Map<string, unknown>) {
+    if (changed.has('page')) {
+      const label = PAGES.find((p) => p.page === this.page)?.label;
+      document.title = this.page === 'scorecard' ? 'Habits' : `${label} · Habits`;
+    }
+    if (['provider', 'email', 'page'].some((k) => changed.has(k)) && this.page === 'scorecard') {
+      void this.loadAlerts();
+    }
+  }
+
+  private async loadAlerts() {
+    const signedIn = !this.auth || !!this.email;
+    if (!this.provider || !signedIn) return;
+    try {
+      const [sources, tokens] = await Promise.all([
+        this.provider.listSources(),
+        this.provider.listIngestTokens(),
+      ]);
+      this.alerts = sourceAlerts(sources, tokens, new Date());
+    } catch {
+      this.alerts = [];
+    }
   }
 
   protected override willUpdate(changed: Map<string, unknown>) {
@@ -81,26 +118,37 @@ export class HabitsApp extends LitElement {
     const signedIn = !this.auth || !!this.email;
     return html`
       <header>
-        <h1>Habits</h1>
+        <div class="title-row">
+          <h1>Habits</h1>
+          ${
+            signedIn && this.auth
+              ? html`<div class="account">
+                  <button type="button" @click=${() => this.auth!.signOut()}>Sign out</button>
+                </div>`
+              : nothing
+          }
+        </div>
         ${
           signedIn && this.provider
-            ? html`<nav aria-label="Pages">
-                ${this.navButton('scorecard', 'Scorecard')} ${this.navButton('habits', 'Habits')}
-                ${this.navButton('sources', 'Sources')}
-                ${
-                  this.auth
-                    ? html`<button type="button" @click=${() => this.auth!.signOut()}>
-                        Sign out
-                      </button>`
-                    : nothing
-                }
+            ? html`<nav aria-label="Pages" class="pages">
+                ${PAGES.map(({ page, label }) => this.navButton(page, label))}
               </nav>`
             : nothing
         }
       </header>
       ${!this.auth ? html`<p class="demo">Demo data. Changes stay in this browser.</p>` : nothing}
+      ${signedIn && this.page === 'scorecard' && this.alerts.length ? this.renderAlerts() : nothing}
       ${this.renderPage(signedIn)}
     `;
+  }
+
+  private renderAlerts() {
+    return html`<div class="alerts" role="status">
+      <ul>
+        ${this.alerts.map((a) => html`<li><span aria-hidden="true">⚠</span> ${a.message}</li>`)}
+      </ul>
+      <button type="button" @click=${() => (this.page = 'sources')}>Open Sources</button>
+    </div>`;
   }
 
   private navButton(page: Page, label: string) {
@@ -123,13 +171,16 @@ export class HabitsApp extends LitElement {
     switch (this.page) {
       case 'habits':
         return html`<habit-editor .provider=${this.provider}></habit-editor>`;
+      case 'data':
+        return html`<data-page .provider=${this.provider}></data-page>`;
       case 'sources':
         return html`<source-list
           .provider=${this.provider}
           .oauthOutcome=${this.handOver()}
         ></source-list>`;
       default:
-        return html`<habit-scorecard .provider=${this.provider}></habit-scorecard>`;
+        return html`<h2 class="sr">Scorecard</h2>
+          <habit-scorecard .provider=${this.provider}></habit-scorecard>`;
     }
   }
 
@@ -155,15 +206,66 @@ export class HabitsApp extends LitElement {
         font-size: 1.25rem;
         margin: 0;
       }
-      nav {
+      /* Pages as one segmented control; full width on a phone. */
+      .pages {
         display: flex;
-        flex-wrap: wrap;
-        gap: calc(var(--hs-space) / 2);
       }
-      nav [aria-current='page'] {
+      .pages button {
+        border-radius: 0;
+        margin-left: -1px;
+        padding: 0 0.875rem;
+      }
+      .pages button:first-child {
+        border-radius: var(--hs-radius) 0 0 var(--hs-radius);
+        margin-left: 0;
+      }
+      .pages button:last-child {
+        border-radius: 0 var(--hs-radius) var(--hs-radius) 0;
+      }
+      .pages [aria-current='page'] {
         background: var(--hs-text);
         color: var(--hs-bg);
         border-color: var(--hs-text);
+        position: relative;
+      }
+      .account {
+        display: flex;
+        gap: var(--hs-space);
+      }
+      @media (max-width: 34rem) {
+        header {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .pages button {
+          flex: 1;
+          padding: 0 0.5rem;
+        }
+        .title-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+      }
+      .alerts {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--hs-space);
+        padding: var(--hs-space) calc(var(--hs-space) * 1.5);
+        margin-bottom: calc(var(--hs-space) * 1.5);
+        border: 1px solid var(--hs-over);
+        border-radius: var(--hs-radius);
+        background: var(--hs-surface);
+      }
+      .alerts ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .alerts li span {
+        color: var(--hs-over);
       }
       .demo {
         margin: 0 0 var(--hs-space);

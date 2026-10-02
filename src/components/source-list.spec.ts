@@ -88,7 +88,8 @@ describe('<source-list>', () => {
     await settle(el);
     button(el, 'Done').click();
     await settle(el);
-    expect((await p.listHabits()).some((h) => h.name === 'Meditate' && h.startDate)).toBe(false);
+    // Only the demo's own Meditate habit: the preset wasn't added.
+    expect((await p.listHabits()).filter((h) => h.name === 'Meditate')).toHaveLength(1);
     expect(text($(el, '.message'))).toBe('MindDrive is connected.');
   });
 
@@ -324,5 +325,41 @@ describe('<source-list> with Withings', () => {
     await settle(other);
     expect($(other, '#issued-heading')).toBeNull();
     expect(text($(other, '.message'))).toBe('');
+  });
+});
+
+describe('<source-list> warnings', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  it('flags a quiet app and an OAuth source that needs reconnecting', async () => {
+    const p = fresh();
+    const list = p.listSources;
+    p.listSources = async () => [
+      ...(await list()),
+      { id: 'df', kind: 'deckfit', label: 'DeckFit', config: {}, createdAt: 'T' },
+      {
+        id: 'st',
+        kind: 'strava',
+        label: 'Strava',
+        config: { connected: false, problem: 'reconnect' },
+        createdAt: 'T',
+      },
+    ];
+    p.listIngestTokens = async () => [
+      {
+        id: 't',
+        sourceId: 'df',
+        createdAt: '2026-08-01T00:00:00Z',
+        lastUsedAt: new Date(now.getTime() - 10 * 86_400_000).toISOString(),
+      },
+    ];
+    const el = await mount(p);
+    const details = [...el.shadowRoot!.querySelectorAll('.list .detail')];
+    expect(details.map(text)).toEqual([
+      'DeckFit last reported 10 days ago.',
+      'Needs reconnecting: access was revoked or expired.',
+    ]);
+    expect(details.every((d) => d.classList.contains('warn'))).toBe(true);
+    expect(button(el, 'Reconnect Strava')).toBeDefined();
   });
 });

@@ -244,7 +244,7 @@ Habits/
     scoring/                 # pure: score.ts, streak.ts, week.ts, dates.ts, scorecard.ts (+ .spec.ts)
     connectors/              # client descriptors + registry.ts
     data/                    # DataProvider interface; supabase-provider.ts, demo-provider.ts
-    styles/tokens.css        # light/dark tokens
+    styles/tokens.css        # light/dark tokens (habit colours, --hs-on-habit, level tints)
   supabase/
     migrations/              # sources, events, habits, ingest_tokens, share_tokens, RLS
     functions/

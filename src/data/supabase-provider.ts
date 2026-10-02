@@ -143,8 +143,13 @@ export function createSupabaseProvider(db: SupabaseClient, supabaseUrl: string):
         .is('revoked_at', null),
     );
 
-  /** Data from OAuth sources is a short-lived cache: ask the server to refresh `from`…today. */
-  const refreshCaches = async (from: string) => {
+  /**
+   * Data from OAuth sources is a short-lived cache: ask the server to refresh `from`…today. At most
+   * a year back, so an all-time read (an export) doesn't pull a provider's whole history.
+   */
+  const refreshCaches = async (requested: string) => {
+    const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+    const from = requested > yearAgo ? requested : yearAgo;
     const sources = (await db.from('sources').select('kind,config')).data ?? [];
     const paths = new Set(
       sources
@@ -230,6 +235,13 @@ export function createSupabaseProvider(db: SupabaseClient, supabaseUrl: string):
       await Promise.all(
         ids.map(async (id, sort) => check(await db.from('habits').update({ sort }).eq('id', id))),
       );
+    },
+
+    async putEvents(events) {
+      for (let i = 0; i < events.length; i += 500) {
+        const rows = events.slice(i, i + 500).map(fromEvent);
+        check(await db.from('events').upsert(rows, { onConflict: 'source_id,external_id' }));
+      }
     },
 
     async putEvent(event) {

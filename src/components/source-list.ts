@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { connectorFor, connectors } from '../connectors/registry';
 import type { Connector } from '../connectors/types';
+import { sourceAlerts } from '../data/alerts';
 import type { DataProvider, IngestToken } from '../data/provider';
 import type { Habit, Source } from '../model';
 import { localDateKey } from '../scoring/dates';
@@ -229,6 +230,9 @@ export class SourceList extends LitElement {
   }
 
   private describe(source: Source): string {
+    const alert = sourceAlerts([source], this.tokens, this.now())[0];
+    if (alert?.kind === 'reconnect') return 'Needs reconnecting: access was revoked or expired.';
+    if (alert) return alert.message;
     if (this.isOAuth(source)) {
       const { connected, athleteName } = oauthState(source);
       if (!connected) return 'Disconnected';
@@ -306,7 +310,10 @@ export class SourceList extends LitElement {
                   html`<li>
                     <span class="what">
                       <span class="name">${s.label}</span>
-                      <span class="detail">${this.describe(s)}</span>
+                      <span
+                        class="detail ${sourceAlerts([s], this.tokens, this.now()).length ? 'warn' : ''}"
+                        >${this.describe(s)}</span
+                      >
                     </span>
                     <span class="actions">
                       ${this.isOAuth(s) ? this.renderOAuthActions(s, busy) : this.renderAppActions(s, busy)}
@@ -478,6 +485,10 @@ export class SourceList extends LitElement {
       }
       .detail {
         font-size: 0.8125rem;
+      }
+      .detail.warn {
+        color: var(--hs-over);
+        font-weight: 500;
       }
       .actions {
         display: flex;

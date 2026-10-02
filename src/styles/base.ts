@@ -49,10 +49,37 @@ export const base = [
       color: var(--hs-bg);
       border-color: var(--hs-text);
     }
+    button:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--hs-text) 8%, var(--hs-surface));
+    }
+    button.primary:hover:not(:disabled),
+    button[aria-pressed='true']:hover,
+    button[aria-current='page']:hover {
+      background: color-mix(in srgb, var(--hs-text) 85%, var(--hs-bg));
+    }
     button:disabled {
       color: var(--hs-text-muted);
       opacity: 0.6;
       cursor: default;
+    }
+    /* A disabled primary button reads as "not yet", not as a grey slab. */
+    button.primary:disabled {
+      background: var(--hs-surface);
+      border-color: var(--hs-border);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      button {
+        transition: background-color 120ms ease-out;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        transition: none !important;
+        animation: none !important;
+        scroll-behavior: auto !important;
+      }
     }
     input,
     select {

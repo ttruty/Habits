@@ -34,6 +34,10 @@ async function settle(app: HabitsApp) {
 }
 
 const $ = (app: HabitsApp, sel: string) => app.shadowRoot!.querySelector(sel);
+const anyButton = (app: HabitsApp, name: string) =>
+  [...app.shadowRoot!.querySelectorAll('button')].find(
+    (b) => b.textContent?.trim() === name,
+  ) as HTMLButtonElement;
 const navButton = (app: HabitsApp, name: string) =>
   [...app.shadowRoot!.querySelectorAll('nav button')].find(
     (b) => b.textContent?.trim() === name,
@@ -46,7 +50,7 @@ describe('<habits-app>', () => {
     const app = await mount({ provider: createDemoProvider() });
     expect($(app, '.demo')?.textContent).toContain('Demo data');
     expect($(app, 'habit-scorecard')).not.toBeNull();
-    expect(navButton(app, 'Sign out')).toBeUndefined();
+    expect(anyButton(app, 'Sign out')).toBeUndefined();
   });
 
   it('switches pages', async () => {
@@ -77,7 +81,7 @@ describe('<habits-app>', () => {
     auth.set('me@example.com');
     await settle(app);
     expect($(app, 'habit-scorecard')).not.toBeNull();
-    navButton(app, 'Sign out').click();
+    anyButton(app, 'Sign out').click();
     await settle(app);
     expect(auth.signOut).toHaveBeenCalled();
     expect($(app, 'sign-in-form')).not.toBeNull();
@@ -163,5 +167,59 @@ describe('returning from Strava', () => {
     await again.updateComplete;
     await settle(app);
     expect(again.shadowRoot!.querySelector('.message')?.textContent).toBe('');
+  });
+});
+
+describe('source alerts', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  it('shows quiet and broken sources above the scorecard, linking to Sources', async () => {
+    const p = createDemoProvider();
+    const list = p.listSources;
+    p.listSources = async () => [
+      ...(await list()),
+      { id: 'df', kind: 'deckfit', label: 'DeckFit', config: {}, createdAt: 'T' },
+      {
+        id: 'st',
+        kind: 'strava',
+        label: 'Strava',
+        config: { problem: 'reconnect' },
+        createdAt: 'T',
+      },
+    ];
+    p.listIngestTokens = async () => [
+      {
+        id: 't',
+        sourceId: 'df',
+        createdAt: '2026-01-01T00:00:00Z',
+        lastUsedAt: new Date(Date.now() - 9 * 86_400_000).toISOString(),
+      },
+    ];
+    const app = await mount({ provider: p });
+    const banner = $(app, '.alerts')!;
+    expect(banner.textContent).toContain('DeckFit last reported 9 days ago.');
+    expect(banner.textContent).toContain('Strava needs reconnecting.');
+    (banner.querySelector('button') as HTMLButtonElement).click();
+    await settle(app);
+    expect($(app, 'source-list')).not.toBeNull();
+    expect($(app, '.alerts')).toBeNull();
+  });
+
+  it('shows nothing when all is well', async () => {
+    const app = await mount({ provider: createDemoProvider() });
+    expect($(app, '.alerts')).toBeNull();
+  });
+});
+
+describe('page titles and headings', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  it('names each page in the document title, and the scorecard page has a heading', async () => {
+    const app = await mount({ provider: createDemoProvider() });
+    expect(document.title).toBe('Habits');
+    expect($(app, 'h2.sr')?.textContent).toBe('Scorecard');
+    navButton(app, 'Data').click();
+    await settle(app);
+    expect(document.title).toBe('Data · Habits');
   });
 });

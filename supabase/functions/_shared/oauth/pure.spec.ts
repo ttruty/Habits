@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { FRESH_MS, expiresAt, safeReturnTo, syncWindow, utcDay, withOutcome } from './pure.ts';
+import { RateLimited, StravaError } from '../strava-api.ts';
+import { WithingsError } from '../withings-api.ts';
+import {
+  FRESH_MS,
+  expiresAt,
+  isAuthFailure,
+  safeReturnTo,
+  syncWindow,
+  utcDay,
+  withOutcome,
+} from './pure.ts';
 
 it('expires cached rows days out', () => {
   expect(expiresAt(new Date('2026-10-01T00:00:00Z'), 7)).toBe('2026-10-08T00:00:00.000Z');
@@ -45,4 +55,15 @@ describe('syncWindow', () => {
       '2026-07-01',
     );
   });
+});
+
+it('treats only refused credentials as needing a reconnect', () => {
+  expect(isAuthFailure(new StravaError(400, 'invalid_grant'))).toBe(true);
+  expect(isAuthFailure(new StravaError(401, 'unauthorized'))).toBe(true);
+  expect(isAuthFailure(new StravaError(500, 'server'))).toBe(false);
+  expect(isAuthFailure(new WithingsError(401, 'invalid token'))).toBe(true);
+  expect(isAuthFailure(new WithingsError(503, 'invalid params'))).toBe(false);
+  expect(isAuthFailure(new RateLimited())).toBe(false);
+  expect(isAuthFailure(new TypeError('fetch failed'))).toBe(false);
+  expect(isAuthFailure(null)).toBe(false);
 });

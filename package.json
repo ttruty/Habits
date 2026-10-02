@@ -8,7 +8,7 @@
     "dev": "vite",
     "dev:live": "vite --mode live",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
-    "build": "npm run typecheck && vite build && vite build --config vite.embed.config.ts",
+    "build": "npm run typecheck && vite build && vite build --config vite.embed.config.ts && node scripts/build-sw.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -18,7 +18,8 @@
     "format": "prettier --write .",
     "size": "node scripts/check-embed-size.mjs",
     "db:push": "supabase db push",
-    "check": "npm run lint && prettier --check . && npm run test:coverage && npm run build && npm run size"
+    "check": "npm run lint && prettier --check . && npm run test:coverage && npm run build && npm run size",
+    "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

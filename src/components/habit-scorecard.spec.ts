@@ -295,6 +295,37 @@ describe('hand-ticked habits', () => {
   });
 });
 
+describe('12-week heatmap', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  it('draws 12 weeks per habit with a spoken summary', async () => {
+    const h = habit({ startDate: '2026-09-21' });
+    const done = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-28'].map((d) => event(d));
+    const card = await mount(provider([h], done), { view: 'heatmap' });
+    expect(button(card, /^12 weeks$/).getAttribute('aria-pressed')).toBe('true');
+    expect($$(card, '.heat-cell')).toHaveLength(84);
+    const grid = $(card, '.heat-grid[role=img]')!;
+    // 11 days since the start: Mon 21 Sep … Thu 1 Oct.
+    expect(grid.getAttribute('aria-label')).toBe(
+      'Workout, last 12 weeks: done 4 of 11 days, 36%. Best run 3 days.',
+    );
+    expect(text($(card, '.heat-stats'))).toBe('4 of 11 days · 36% · best run 3');
+    expect($$(card, '.heat-cell.l-4')).toHaveLength(4);
+    expect($$(card, '.heat-cell.l-inactive').length).toBeGreaterThan(0);
+  });
+
+  it('totals metric habits, and steps 12 weeks at a time', async () => {
+    const h = habit({ match: { types: ['gaming.session'] }, rule: { aggregate: 'sum' } });
+    const played = [event('2026-09-29', { type: 'gaming.session', value: 3600, unit: 'seconds' })];
+    const card = await mount(provider([h], played), { view: 'heatmap' });
+    expect(text($(card, '.heat-stats'))).toMatch(/^1h in total/);
+    const first = text($(card, '#range'));
+    button(card, /^Previous 12 weeks$/).click();
+    await settle(card);
+    expect(text($(card, '#range'))).not.toBe(first);
+  });
+});
+
 describe('minutes in the square', () => {
   afterEach(() => document.body.replaceChildren());
 

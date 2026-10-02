@@ -3,7 +3,7 @@
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { toRow, type IngestEvent } from '../ingest.ts';
-import { expiresAt, syncWindow } from './pure.ts';
+import { expiresAt, isAuthFailure, syncWindow } from './pure.ts';
 import type { OAuthApp, OAuthProvider, Tokens, WebhookHint } from './types.ts';
 
 export interface OAuthAccount {
@@ -86,7 +86,13 @@ export async function accessToken(
   account: OAuthAccount,
 ): Promise<string> {
   if (Date.parse(account.expires_at) - Date.now() > 60_000) return account.access_token;
-  const t = await provider.refresh(app, account.refresh_token);
+  let t: Tokens;
+  try {
+    t = await provider.refresh(app, account.refresh_token);
+  } catch (e) {
+    if (isAuthFailure(e)) await needsReconnect(db, account);
+    throw e;
+  }
   account.access_token = t.accessToken;
   account.refresh_token = t.refreshToken;
   account.expires_at = t.expiresAt.toISOString();
@@ -202,6 +208,19 @@ export async function applyHint(
       .eq('source_id', account.source_id)
       .eq('external_id', hint.itemId);
   }
+}
+
+/**
+ * Access is gone (revoked at the provider, or the refresh token expired): drop the dead tokens and
+ * tell the app, which shows "needs reconnecting". Data already stored stays; cached rows still
+ * expire on their own.
+ */
+async function needsReconnect(db: SupabaseClient, account: OAuthAccount): Promise<void> {
+  await db.from('oauth_accounts').delete().eq('source_id', account.source_id);
+  await db
+    .from('sources')
+    .update({ config: { connected: false, problem: 'reconnect' } })
+    .eq('id', account.source_id);
 }
 
 /**

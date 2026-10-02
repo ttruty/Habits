@@ -279,15 +279,15 @@ step, through Tasker or MacroDroid.
 
 ## Phase 7: Polish
 
-- [ ] PWA: manifest, icons, service worker for the app shell (not for `/share`
+- [x] PWA: manifest, icons, service worker for the app shell (not for `/share`
       or `/ingest`).
-- [ ] Month view and a 12-week heatmap per habit (reuse the MindDrive heatmap
+- [x] Month view and a 12-week heatmap per habit (reuse the MindDrive heatmap
       levels idea).
-- [ ] Export all events to CSV or JSON. Import from CSV, for backfilling old
+- [x] Export all events to CSV or JSON. Import from CSV, for backfilling old
       habits by hand.
-- [ ] Error states: source not reporting for N days ("DeckFit last reported
+- [x] Error states: source not reporting for N days ("DeckFit last reported
       9 days ago"), expired Strava token, ingest token revoked.
-- [ ] Accessibility and reduced-motion pass. Embed size check is green.
+- [x] Accessibility and reduced-motion pass. Embed size check is green.
 
 ---
 
@@ -314,6 +314,33 @@ entry" (see CLAUDE.md, rule 4).
 ## Notes log
 
 Append findings, surprises and as-built changes here, newest first.
+
+- _2026-10-02_: **Phase 7 (polish) built**, skipping Phases 4, 5b and 6 at the
+  owner's request (they remain open above).
+  - PWA: `manifest.webmanifest`, icons rendered by `scripts/make-icons.mjs`
+    (Playwright, no image tooling), and `dist/sw.js` generated after each build
+    by `scripts/build-sw.mjs`: navigations network-first with the cached shell
+    offline, hashed assets cache-first, cross-origin (Supabase) and `embed.js`
+    never cached. Gotcha: module scripts are requested with an `Origin` header,
+    so cache lookups need `ignoreVary: true` or they miss offline.
+  - "12 weeks" view: a heatmap per habit (`scoring/heatmap.ts`): done = full,
+    short goal days shaded by how close they came, metric days against the
+    busiest day, over-limit marked. `role="img"` with a spoken summary.
+  - Data page: export JSON (sources, habits, events) or events CSV; import a
+    `date[,amount]` CSV into a habit as `manual.entry` events keyed
+    `import:<habit>:<date>` (re-import replaces). No amount = exactly the goal.
+    Decimal commas work with `;`/tab separators. The OAuth cache refresh is
+    capped to a year so an all-time export doesn't pull a provider's history.
+  - Alerts (`data/alerts.ts`): an app quiet for 7+ days, or an OAuth source
+    whose refresh token was refused (Strava 400/401, Withings 401: tokens
+    dropped, `config.problem = 'reconnect'`); banner above the scorecard and
+    warnings on Sources. Revoked ingest tokens show "Disconnected".
+  - UI: pages as one segmented control (full width on a phone), Sign out by
+    the title, page titles (`Data · Habits`), a heading for the scorecard
+    page, hover states, outlined disabled primaries, the week table at natural
+    width on wide screens, reduced-motion guard. Playwright emulates reduced
+    motion so axe can't sample a colour mid-fade. axe clean on every page and
+    view in both themes.
 
 - _2026-10-02_: Minute habits (unit seconds) show their minutes **inside** the
   square on done days, and tracked-only minute habits put the number inside
