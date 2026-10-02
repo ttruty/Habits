@@ -180,8 +180,9 @@ interface Connector {
 ```
 
 Client-side descriptors live in `src/connectors/<kind>.ts`. Server-side
-`normalize` and OAuth live in `supabase/functions/connectors/<kind>.ts`. Both are
-registered in one `registry.ts` on each side.
+connectors (allowed types, `onConflict`, later `normalize` and OAuth) live in
+`supabase/functions/_shared/connectors/<kind>.ts`. Both are registered in one
+`registry.ts` on each side.
 
 ---
 
@@ -210,7 +211,7 @@ Habits/
       strava-webhook/        # subscription validation + activity events
       share/                 # GET computed grid for a share token (what the embed reads)
   clients/
-    habits-reporter.ts       # ~60-line drop-in for sibling apps: queue → flush to /ingest
+    habits-reporter.ts       # drop-in for sibling apps: queue → flush to /ingest (master copy; apps keep copies)
     windows-steam/           # habits-steam.ps1 + install.ps1 (Task Scheduler at logon)
   public/                    # manifest, icons
   .github/workflows/deploy-pages.yml

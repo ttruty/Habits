@@ -110,17 +110,17 @@ second device.
 
 **Goal:** DeckFit, MindDrive and Yarnbeard report completions automatically.
 
-- [ ] Edge Function `ingest`: `POST` a batch of up to 100 events with
+- [x] Edge Function `ingest`: `POST` a batch of up to 100 events with
       `Authorization: Bearer <ingest token>`. Validate the input, upsert on
       `(source_id, external_id)`, and return the counts of accepted and
       duplicate events. Configure CORS for the sibling apps' origins.
-- [ ] In the Habits app, "Connect an app" creates a Source and an ingest token
+- [x] In the Habits app, "Connect an app" creates a Source and an ingest token
       for it, and shows the URL and token once to paste into the source app.
-- [ ] `clients/habits-reporter.ts`: dependency-free.
+- [x] `clients/habits-reporter.ts`: dependency-free.
       `report(event)` → localStorage queue → flush on `online`, on visibility
       change and on a timer, with backoff. Exponential retry. Never blocks the
       host app.
-- [ ] Wire each sibling app, **in its own repo**, behind a settings toggle
+- [x] Wire each sibling app, **in its own repo**, behind a settings toggle
       that is off by default, and update that app's privacy text:
 
   | App       | Hook point                                         | Event                                                                                                                                           |
@@ -129,7 +129,7 @@ second device.
   | MindDrive | `PlaybackService` when `completed` flips to `true` | `meditation.completed`, value = `durationSec`, meta = `folderPath`, `externalId` = `driveId:<date>`                                             |
   | Yarnbeard | `StatsService` daily rollup (debounced)            | `listening.day`, value = that day's seconds, `externalId` = `yarnbeard:<date>` (upserts as the day grows); plus `book.finished` on `finishedAt` |
 
-- [ ] Connector descriptors and presets for all three ("Workout 4×/week",
+- [x] Connector descriptors and presets for all three ("Workout 4×/week",
       "Meditate daily", "Listen 20 min daily").
 
 **Done when:** finishing a DeckFit game, a MindDrive session and 20 minutes
@@ -312,6 +312,40 @@ entry" (see CLAUDE.md, rule 4).
 ## Notes log
 
 Append findings, surprises and as-built changes here, newest first.
+
+- _2026-10-01_: Phase 3 built. As-built differences from the plan:
+  - `/ingest` is deployed (`verify_jwt = false`; the ingest token is the
+    credential). Body `{ events: [...] }`, ≤ 100. Bad events are rejected one
+    by one (`rejected: [{ index, error }]`) and the rest stored, so one broken
+    event can't jam an app's queue. Reply: `{ accepted, updated, duplicates,
+    rejected }`. 401 = unknown or revoked token.
+  - Server connectors live in `supabase/functions/_shared/connectors/` (not
+    `functions/connectors/`): one file each with the allowed event `types` and
+    `onConflict: 'ignore' | 'update'`. Only Yarnbeard updates. First-party apps
+    send the event shape directly, so there's no `normalize` yet; Strava
+    (Phase 4) is the first that needs one.
+  - CORS allowlist: `https://timtruty.com` (all three apps are served there)
+    and their localhost dev ports; override with the `INGEST_ALLOWED_ORIGINS`
+    function secret.
+  - Verified end to end on the hosted project with a temporary source (since
+    deleted): accept, per-event reject, Yarnbeard's day total updating in
+    place (600 → 1500), owner and `last_used_at` set, token dead after delete.
+  - `habits-reporter.ts` is ~200 lines, not ~60: pluggable queue storage
+    (DeckFit forbids localStorage), one send at a time, a replacement queued
+    mid-send survives, 4xx other than 401/403/408/429 drops the batch for good.
+    Each app keeps a **copy**; this file is the master.
+  - Sibling apps (each committed in its own repo; pushed separately):
+    - DeckFit (`CLAUDE.md` §16): settings and queue in Dexie `meta`. Every
+      ended session is reported, abandoned ones with `outcome: 'abandoned'`;
+      the Workout preset counts `finished` only.
+    - MindDrive (`CLAUDE.md` §17): reports when `completed` flips to true;
+      `externalId = <driveId>:<date>`.
+    - Yarnbeard: day totals at most every 5 min (and when hidden), plus a bare
+      `book.finished`. **No titles, authors, file names or Drive ids**: its
+      privacy policy backs Google OAuth verification (Limited Use), so it
+      sends only numbers it computes. `PRIVACY.md` gained section 4.
+  - Preset names: "Workout" (4×/week), "Meditate" (daily), "Listen 20 min"
+    (daily, ≥ 1200 s).
 
 - _2026-10-01_: Phase 2 built. As-built differences from the plan:
   - Sign-in is an email magic link (decided over Google: no OAuth client to
