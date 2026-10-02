@@ -1,4 +1,4 @@
-import type { DateRange, Habit, HabitEvent, Source } from '../model';
+import type { ConnectorKind, DateRange, Habit, HabitEvent, Source } from '../model';
 
 export type NewEvent = Omit<HabitEvent, 'id'>;
 
@@ -29,6 +29,13 @@ export interface DataProvider {
   /** Insert, or update the event with the same (sourceId, externalId). */
   putEvent(event: NewEvent): Promise<void>;
   deleteEvent(id: string): Promise<void>;
+
+  /** Whether OAuth sources (Strava) can be connected; false in demo mode. */
+  readonly oauth: boolean;
+  /** Start connecting an OAuth source: the URL to send the browser to. */
+  connectOAuth(kind: ConnectorKind, returnTo: string): Promise<string>;
+  /** Revoke an OAuth source at the provider and delete its data. */
+  disconnectOAuth(source: Source): Promise<void>;
 
   /** Where apps POST events; shown when connecting one. */
   readonly ingestUrl: string;

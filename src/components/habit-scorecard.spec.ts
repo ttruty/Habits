@@ -289,6 +289,35 @@ describe('hand-ticked habits', () => {
   });
 });
 
+describe('attribution', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  const strava = (connected: boolean): Source => ({
+    id: 'st',
+    kind: 'strava',
+    label: 'Strava',
+    config: { connected },
+    createdAt: 'T',
+  });
+  const run = habit({
+    id: 'run',
+    name: 'Run',
+    match: { sourceIds: ['st'], types: ['activity.created'] },
+  });
+
+  it('credits Strava when a connected Strava source is on screen', async () => {
+    const card = await mount(provider([run], [], [strava(true)]));
+    const link = $(card, '.attribution a') as HTMLAnchorElement;
+    expect(text(link)).toBe('Powered by Strava');
+    expect(link.href).toBe('https://www.strava.com/');
+  });
+
+  it('shows no credit without Strava data', async () => {
+    expect($(await mount(provider([run], [], [strava(false)])), '.attribution')).toBeNull();
+    expect($(await mount(provider([habit()], [], [])), '.attribution')).toBeNull();
+  });
+});
+
 describe('cellStatus', () => {
   const sum = habit({ rule: { aggregate: 'sum', atLeast: 1200 } });
   const limit = habit({ rule: { aggregate: 'sum', atMost: 600 } });

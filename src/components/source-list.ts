@@ -6,19 +6,38 @@ import type { Habit, Source } from '../model';
 import { localDateKey } from '../scoring/dates';
 import { base } from '../styles/base';
 
-/** A token that was just issued, shown once with the URL and the suggested habits. */
+/**
+ * A source just connected: for apps, the token (shown once) and URL; for OAuth sources, no token.
+ * Either way, the suggested habits.
+ */
 interface Issued {
   source: Source;
-  token: string;
+  token?: string;
   /** Preset indexes still ticked; only offered for a newly connected source. */
   presets: Set<number> | null;
 }
 
-/** Apps that report on their own, with their tokens; "Connect an app" issues a token. */
+/** What came back from an OAuth round trip (?strava=…), in plain words. */
+const OAUTH_MESSAGES: Record<string, string> = {
+  denied: "Strava wasn't connected.",
+  'missing-scope':
+    'Strava was connected without permission to read your activities. Connect again and leave both boxes ticked.',
+  failed: "Couldn't connect Strava. Try again.",
+};
+
+/** OAuth sources keep `connected` (and maybe a name) in their non-secret config. */
+const oauthState = (s: Source) => s.config as { connected?: boolean; athleteName?: string | null };
+
+/**
+ * Sources that report on their own. "Connect an app" issues an ingest token for first-party apps,
+ * or starts OAuth for Strava.
+ */
 export class SourceList extends LitElement {
   static override properties = {
     provider: { attribute: false },
     now: { attribute: false },
+    navigate: { attribute: false },
+    oauthOutcome: { attribute: false },
     sources: { state: true },
     tokens: { state: true },
     status: { state: true },
@@ -30,6 +49,10 @@ export class SourceList extends LitElement {
   declare provider: DataProvider;
   /** For tests. */
   declare now: () => Date;
+  /** Sends the browser to a provider's sign-in page. Replaced in tests. */
+  declare navigate: (url: string) => void;
+  /** The `?strava=` outcome after returning from Strava, if any. */
+  declare oauthOutcome: string | undefined;
   declare private sources: Source[];
   declare private tokens: IngestToken[];
   declare private status: 'loading' | 'ready' | 'error' | 'saving';
@@ -42,6 +65,7 @@ export class SourceList extends LitElement {
   constructor() {
     super();
     this.now = () => new Date();
+    this.navigate = (url) => location.assign(url);
     this.sources = [];
     this.tokens = [];
     this.status = 'loading';
@@ -68,14 +92,46 @@ export class SourceList extends LitElement {
       this.sources = sources;
       this.tokens = tokens;
       this.status = 'ready';
+      this.showOAuthOutcome();
     } catch {
       this.status = 'error';
     }
   }
 
+  /** Once, after loading: say how the OAuth round trip went, and offer habits if it worked. */
+  private showOAuthOutcome() {
+    const outcome = this.oauthOutcome;
+    if (!outcome) return;
+    this.oauthOutcome = undefined;
+    const source = this.sources.find((s) => s.kind === 'strava');
+    if (outcome === 'connected' && source) {
+      const connector = connectorFor(source.kind);
+      this.issued = { source, presets: new Set(connector?.presets.map((_, i) => i)) };
+      this.focusNext = '#issued-heading';
+    } else {
+      this.message = OAUTH_MESSAGES[outcome] ?? OAUTH_MESSAGES.failed;
+    }
+  }
+
   /** Sources that report on their own (everything but hand-ticking). */
   private get connected() {
-    return this.sources.filter((s) => connectorFor(s.kind)?.mode === 'push');
+    return this.sources.filter((s) => {
+      const mode = connectorFor(s.kind)?.mode;
+      return mode === 'push' || mode === 'oauth';
+    });
+  }
+
+  private isOAuth(source: Source) {
+    return connectorFor(source.kind)?.mode === 'oauth';
+  }
+
+  /** Off to the provider's consent page; it sends the browser back here with ?<kind>=outcome. */
+  private async startOAuth(connector: Connector) {
+    this.picking = false;
+    const returnTo = `${location.origin}${location.pathname}`;
+    const url = await this.busy(() => this.provider.connectOAuth(connector.kind, returnTo));
+    if (url) this.navigate(url);
+    else this.message = `Couldn't start connecting ${connector.displayName}. Try again later.`;
   }
 
   private async busy<T>(action: () => Promise<T>): Promise<T | undefined> {
@@ -92,6 +148,7 @@ export class SourceList extends LitElement {
   }
 
   private async connect(connector: Connector) {
+    if (connector.mode === 'oauth') return this.startOAuth(connector);
     this.picking = false;
     const issued = await this.busy(async () => {
       const source = await this.provider.addSource({
@@ -123,10 +180,15 @@ export class SourceList extends LitElement {
   }
 
   private async disconnect(source: Source) {
-    if (!confirm(`Disconnect ${source.label}? It stops reporting. Its past events stay.`)) return;
-    if ((await this.busy(() => this.provider.revokeIngestTokens(source.id))) !== undefined) {
-      this.message = `Disconnected ${source.label}.`;
-    }
+    const oauth = this.isOAuth(source);
+    const question = oauth
+      ? `Disconnect ${source.label}? Its activities are removed from Habits, as its terms require.`
+      : `Disconnect ${source.label}? It stops reporting. Its past events stay.`;
+    if (!confirm(question)) return;
+    const done = await this.busy(() =>
+      oauth ? this.provider.disconnectOAuth(source) : this.provider.revokeIngestTokens(source.id),
+    );
+    if (done !== undefined) this.message = `Disconnected ${source.label}.`;
   }
 
   private async finish() {
@@ -167,6 +229,11 @@ export class SourceList extends LitElement {
   }
 
   private describe(source: Source): string {
+    if (this.isOAuth(source)) {
+      const { connected, athleteName } = oauthState(source);
+      if (!connected) return 'Disconnected';
+      return athleteName ? `Connected as ${athleteName}` : 'Connected';
+    }
     const mine = this.tokens.filter((t) => t.sourceId === source.id);
     const live = mine.find((t) => !t.revokedAt);
     if (!live) return 'Disconnected';
@@ -200,7 +267,9 @@ export class SourceList extends LitElement {
 
   private renderList() {
     const busy = this.status === 'saving';
-    const connectable = connectors.filter((c) => c.mode === 'push');
+    const connectable = connectors.filter(
+      (c) => c.mode === 'push' || (c.mode === 'oauth' && this.provider.oauth),
+    );
     return html`
       <div class="head">
         <h2>Sources</h2>
@@ -240,26 +309,7 @@ export class SourceList extends LitElement {
                       <span class="detail">${this.describe(s)}</span>
                     </span>
                     <span class="actions">
-                      <button
-                        type="button"
-                        aria-label="New token for ${s.label}"
-                        ?disabled=${busy}
-                        @click=${() => this.reissue(s)}
-                      >
-                        New token
-                      </button>
-                      ${
-                        this.tokens.some((t) => t.sourceId === s.id && !t.revokedAt)
-                          ? html`<button
-                              type="button"
-                              aria-label="Disconnect ${s.label}"
-                              ?disabled=${busy}
-                              @click=${() => this.disconnect(s)}
-                            >
-                              Disconnect
-                            </button>`
-                          : nothing
-                      }
+                      ${this.isOAuth(s) ? this.renderOAuthActions(s, busy) : this.renderAppActions(s, busy)}
                     </span>
                   </li>`,
               )}
@@ -269,14 +319,56 @@ export class SourceList extends LitElement {
     `;
   }
 
-  private renderIssued(issued: Issued) {
-    const connector = connectorFor(issued.source.kind);
-    const busy = this.status === 'saving';
-    return html`<section aria-labelledby="issued-heading">
-      <h2 id="issued-heading" tabindex="-1">Connect ${issued.source.label}</h2>
+  private renderOAuthActions(s: Source, busy: boolean) {
+    const connector = connectorFor(s.kind)!;
+    if (oauthState(s).connected) {
+      return html`<button
+        type="button"
+        aria-label="Disconnect ${s.label}"
+        ?disabled=${busy}
+        @click=${() => this.disconnect(s)}
+      >
+        Disconnect
+      </button>`;
+    }
+    return html`<button
+      type="button"
+      aria-label="Reconnect ${s.label}"
+      ?disabled=${busy || !this.provider.oauth}
+      @click=${() => this.startOAuth(connector)}
+    >
+      Reconnect
+    </button>`;
+  }
+
+  private renderAppActions(s: Source, busy: boolean) {
+    return html`<button
+        type="button"
+        aria-label="New token for ${s.label}"
+        ?disabled=${busy}
+        @click=${() => this.reissue(s)}
+      >
+        New token
+      </button>
+      ${
+        this.tokens.some((t) => t.sourceId === s.id && !t.revokedAt)
+          ? html`<button
+              type="button"
+              aria-label="Disconnect ${s.label}"
+              ?disabled=${busy}
+              @click=${() => this.disconnect(s)}
+            >
+              Disconnect
+            </button>`
+          : nothing
+      }`;
+  }
+
+  private renderToken(source: Source, token: string) {
+    return html`<h2 id="issued-heading" tabindex="-1">Connect ${source.label}</h2>
       <p>
-        In ${issued.source.label}, open Settings, turn on reporting to Habits, and paste these two
-        values. <strong>The token is shown only this once.</strong>
+        In ${source.label}, open Settings, turn on reporting to Habits, and paste these two values.
+        <strong>The token is shown only this once.</strong>
       </p>
       <div class="field">
         <label for="url">Ingest URL</label>
@@ -290,10 +382,22 @@ export class SourceList extends LitElement {
       <div class="field">
         <label for="token">Token</label>
         <div class="row">
-          <input id="token" readonly .value=${issued.token} />
-          <button type="button" @click=${() => this.copy(issued.token, 'token')}>Copy</button>
+          <input id="token" readonly .value=${token} />
+          <button type="button" @click=${() => this.copy(token, 'token')}>Copy</button>
         </div>
-      </div>
+      </div> `;
+  }
+
+  private renderOAuthDone(source: Source) {
+    return html`<h2 id="issued-heading" tabindex="-1">${source.label} is connected</h2>
+      <p>Your last 60 days of activities are on their way. New ones arrive within a minute.</p>`;
+  }
+
+  private renderIssued(issued: Issued) {
+    const connector = connectorFor(issued.source.kind);
+    const busy = this.status === 'saving';
+    return html`<section aria-labelledby="issued-heading">
+      ${issued.token ? this.renderToken(issued.source, issued.token) : this.renderOAuthDone(issued.source)}
       ${
         issued.presets && connector?.presets.length
           ? html`<fieldset class="field">

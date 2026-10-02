@@ -31,10 +31,13 @@ export class HabitsApp extends LitElement {
   declare private page: Page;
 
   private unsubscribe?: () => void;
+  /** `?strava=<outcome>` after returning from Strava's consent page; handed to Sources once. */
+  private oauthOutcome: string | undefined;
 
   constructor() {
     super();
     this.page = 'scorecard';
+    this.takeOAuthOutcome();
     this.linkError = '';
   }
 
@@ -44,6 +47,29 @@ export class HabitsApp extends LitElement {
       this.email = undefined;
       this.unsubscribe = this.auth?.onChange((email) => (this.email = email));
     }
+  }
+
+  /** The OAuth outcome, once: going back to Sources later shouldn't repeat it. */
+  private handOver() {
+    const outcome = this.oauthOutcome;
+    this.oauthOutcome = undefined;
+    return outcome;
+  }
+
+  /** Open Sources after an OAuth round trip, and tidy the outcome out of the address bar. */
+  private takeOAuthOutcome() {
+    const params = new URLSearchParams(location.search);
+    const outcome = params.get('strava');
+    if (!outcome) return;
+    this.page = 'sources';
+    this.oauthOutcome = outcome;
+    params.delete('strava');
+    const query = params.toString();
+    history.replaceState(
+      null,
+      '',
+      `${location.pathname}${query ? `?${query}` : ''}${location.hash}`,
+    );
   }
 
   override disconnectedCallback() {
@@ -98,7 +124,10 @@ export class HabitsApp extends LitElement {
       case 'habits':
         return html`<habit-editor .provider=${this.provider}></habit-editor>`;
       case 'sources':
-        return html`<source-list .provider=${this.provider}></source-list>`;
+        return html`<source-list
+          .provider=${this.provider}
+          .oauthOutcome=${this.handOver()}
+        ></source-list>`;
       default:
         return html`<habit-scorecard .provider=${this.provider}></habit-scorecard>`;
     }

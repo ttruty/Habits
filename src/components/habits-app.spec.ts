@@ -136,3 +136,32 @@ describe('linkErrorFromUrl', () => {
     expect(linkErrorFromUrl('#error=server_error')).toBe("That link didn't work. Send a new one.");
   });
 });
+
+describe('returning from Strava', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    history.replaceState(null, '', '/');
+  });
+
+  it('opens Sources with the outcome, once, and tidies the address bar', async () => {
+    history.replaceState(null, '', '/?keep=1&strava=denied#x');
+    const app = await mount({ provider: createDemoProvider() });
+    expect(location.search).toBe('?keep=1');
+    expect(location.hash).toBe('#x');
+    const list = $(app, 'source-list') as HTMLElement & { updateComplete: Promise<void> };
+    await settle(app);
+    await list.updateComplete;
+    expect(list.shadowRoot!.querySelector('.message')?.textContent).toBe(
+      "Strava wasn't connected.",
+    );
+
+    navButton(app, 'Scorecard').click();
+    await settle(app);
+    navButton(app, 'Sources').click();
+    await settle(app);
+    const again = $(app, 'source-list') as HTMLElement & { updateComplete: Promise<void> };
+    await again.updateComplete;
+    await settle(app);
+    expect(again.shadowRoot!.querySelector('.message')?.textContent).toBe('');
+  });
+});

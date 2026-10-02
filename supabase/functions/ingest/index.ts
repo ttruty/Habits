@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
   if (authError) return reply(500, { error: 'Lookup failed' });
   const kind = (auth?.sources as { kind?: string } | null)?.kind;
   const connector = kind ? serverConnectorFor(kind) : undefined;
-  if (!auth || !connector) return reply(401, { error: 'Unknown or revoked ingest token' });
+  if (!auth || !connector?.ingest) return reply(401, { error: 'Unknown or revoked ingest token' });
 
   let body: unknown;
   try {

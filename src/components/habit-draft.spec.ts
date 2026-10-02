@@ -57,14 +57,15 @@ describe('draftFromHabit / habitFromDraft', () => {
     expect(saved.sort).toBe(3);
   });
 
-  it('shows meters as km', () => {
+  it('keeps a where filter while source and type stay the same', () => {
+    // Strava's value is moving time in seconds, so a limit shows in minutes.
     const run: Habit = {
       ...listen,
       match: { sourceIds: ['s'], types: ['activity.created'], where: { sport_type: ['Run'] } },
-      rule: { aggregate: 'sum', atMost: 5500 },
+      rule: { aggregate: 'sum', atMost: 5400 },
     };
     const draft = draftFromHabit(run, sources);
-    expect(draft).toMatchObject({ goal: 'atMost', amount: '5.5' });
+    expect(draft).toMatchObject({ goal: 'atMost', amount: '90' });
     // Same source and type: the where filter survives the edit.
     expect(habitFromDraft(draft, sources, run, 0).match.where).toEqual({ sport_type: ['Run'] });
     // New source: it doesn't.

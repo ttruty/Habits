@@ -104,6 +104,8 @@ describe('connectors', () => {
     expect(serverConnectorFor('deckfit')?.onConflict).toBe('ignore');
     expect(serverConnectorFor('minddrive')?.onConflict).toBe('ignore');
     expect(serverConnectorFor('manual')).toBeUndefined();
+    expect(serverConnectorFor('strava')?.ingest).toBe(false);
+    expect(serverConnectorFor('deckfit')?.ingest).toBe(true);
   });
 });
 
@@ -123,6 +125,10 @@ describe('helpers', () => {
       meta: null,
     });
     expect(toRow(good as never, 'o', 's')).toMatchObject({ value: 1500, unit: 'seconds' });
+    expect(toRow(good as never, 'o', 's')).not.toHaveProperty('expires_at');
+    expect(toRow(good as never, 'o', 's', '2026-10-08T00:00:00.000Z').expires_at).toBe(
+      '2026-10-08T00:00:00.000Z',
+    );
   });
 
   it('reads bearer tokens', () => {

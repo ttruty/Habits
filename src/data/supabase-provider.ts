@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DateRange, Habit, HabitEvent, Source } from '../model';
+import { connectorFor } from '../connectors/registry';
 import type { DataProvider, IngestToken, NewEvent } from './provider';
 import { newIngestToken, sha256Hex } from './tokens';
 
@@ -142,8 +143,39 @@ export function createSupabaseProvider(db: SupabaseClient, supabaseUrl: string):
         .is('revoked_at', null),
     );
 
+  /** Data from OAuth sources is a short-lived cache: ask the server to refresh `from`…today. */
+  const refreshCaches = async (from: string) => {
+    const sources = (await db.from('sources').select('kind,config')).data ?? [];
+    const paths = new Set(
+      sources
+        .filter((s) => (s.config as { connected?: boolean } | null)?.connected)
+        .map((s) => connectorFor(s.kind as Source['kind'])?.syncPath)
+        .filter((p): p is string => !!p),
+    );
+    // Best effort: if it fails, the cached rows still show.
+    await Promise.all(
+      [...paths].map((p) => db.functions.invoke(p, { body: { from } }).catch(() => undefined)),
+    );
+  };
+
   return {
     canEdit: true,
+    oauth: true,
+
+    async connectOAuth(kind, returnTo) {
+      const { data, error } = await db.functions.invoke(`${kind}-oauth/connect`, {
+        body: { returnTo },
+      });
+      if (error || typeof data?.url !== 'string') throw new Error("Couldn't start connecting");
+      return data.url as string;
+    },
+
+    async disconnectOAuth(source) {
+      const { error } = await db.functions.invoke(`${source.kind}-oauth/disconnect`, {
+        body: { sourceId: source.id },
+      });
+      if (error) throw new Error("Couldn't disconnect");
+    },
     ingestUrl: `${supabaseUrl.replace(/\/$/, '')}/functions/v1/ingest`,
 
     async listSources() {
@@ -161,6 +193,7 @@ export function createSupabaseProvider(db: SupabaseClient, supabaseUrl: string):
     },
 
     async listEvents({ from, to }: DateRange) {
+      await refreshCaches(from);
       const out: HabitEvent[] = [];
       for (let start = 0; ; start += PAGE) {
         const rows = check(

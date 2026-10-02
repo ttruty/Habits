@@ -10,4 +10,11 @@ export interface Connector {
   eventTypes: { type: string; unit?: Unit; label: string }[];
   /** Suggested habits shown when the source is first connected. */
   presets: Omit<Habit, 'id' | 'sort'>[];
+  /** Required credit wherever this source's data shows (e.g. "Powered by Strava"). */
+  attribution?: { text: string; href: string };
+  /**
+   * OAuth sources whose provider limits caching: the Edge Function route that refetches a range
+   * before it's read (see CLAUDE.md, Strava).
+   */
+  syncPath?: string;
 }

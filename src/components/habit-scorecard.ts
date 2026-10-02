@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { createDemoProvider } from '../data/demo-provider';
 import type { DataProvider } from '../data/provider';
 import { checkInEvent, checkInsOn, manualSourceOf } from '../connectors/manual';
+import { connectorFor } from '../connectors/registry';
 import { formatDate } from '../format';
 import type { DateKey, DateRange, Habit, HabitEvent, Source } from '../model';
 import {
@@ -307,7 +308,28 @@ export class HabitScorecard extends LitElement {
           </tbody>
         </table>
       </div>
+      ${this.renderAttribution(rows.map((r) => r.habit))}
       ${this.notice ? html`<p class="status error" role="alert">${this.notice}</p>` : nothing}`;
+  }
+
+  /** Credit required by a source's terms ("Powered by Strava") when its data is on screen. */
+  private renderAttribution(habits: Habit[]) {
+    const credits = new Map<string, string>();
+    for (const habit of habits) {
+      for (const id of habit.match.sourceIds ?? []) {
+        const source = this.sources.find((s) => s.id === id);
+        const credit = source && connectorFor(source.kind)?.attribution;
+        if (credit && (source.config as { connected?: boolean }).connected) {
+          credits.set(credit.text, credit.href);
+        }
+      }
+    }
+    if (!credits.size) return nothing;
+    return html`<p class="attribution">
+      ${[...credits].map(
+        ([text, href]) => html`<a href=${href} target="_blank" rel="noopener">${text}</a> `,
+      )}
+    </p>`;
   }
 
   static override styles = [
@@ -436,6 +458,15 @@ export class HabitScorecard extends LitElement {
         color: var(--hs-text-muted);
         font-size: 0.8em;
         margin-left: 1px;
+      }
+
+      .attribution {
+        margin: var(--hs-space) 0 0;
+        font-size: 0.75rem;
+        color: var(--hs-text-muted);
+      }
+      .attribution a {
+        color: inherit;
       }
 
       /* Hand-ticked cells: the whole cell is the button. */

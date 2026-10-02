@@ -112,7 +112,11 @@ app has about three views.
 8. **Respect connector terms.** Strava's API agreement requires attribution
    ("Powered by Strava") wherever Strava data shows, and forbids showing one
    athlete's data to others without consent. The widget shows only the owner's
-   own data, so it is fine.
+   own data, so it is fine. Strava's API Policy §6.2 also caps caching its data
+   at **7 days**: Strava events are a cache (`events.expires_at`, purged daily
+   by `pg_cron`) and are refetched from Strava when a range is viewed. Never
+   keep Strava data longer, and delete all of it when the athlete disconnects
+   or deauthorizes.
 
 ---
 
@@ -183,6 +187,32 @@ Client-side descriptors live in `src/connectors/<kind>.ts`. Server-side
 connectors (allowed types, `onConflict`, later `normalize` and OAuth) live in
 `supabase/functions/_shared/connectors/<kind>.ts`. Both are registered in one
 `registry.ts` on each side.
+
+### Strava (as built, Phase 5)
+
+- Tokens live in `strava_accounts` (RLS on, no policies, no grants to browser
+  roles): only Edge Functions read them. OAuth state is in `oauth_states`.
+- `strava-oauth`: `POST /connect` (owner JWT) creates the Strava source and
+  returns Strava's consent URL; `GET /callback` exchanges the code, needs scope
+  `activity:read_all` (private activities count), makes sure the webhook
+  subscription exists, backfills 60 days, and redirects to the app with
+  `?strava=connected|denied|missing-scope|failed`. `POST /sync { from }` refetches
+  `from`…today unless the last fetch covers it and is under 6 hours old.
+  `POST /disconnect` revokes at Strava and deletes the tokens and every cached
+  activity.
+- `strava-webhook`: answers Strava's subscription check with
+  `STRAVA_VERIFY_TOKEN`. Webhooks aren't signed, so a POST only ever triggers a
+  refetch of that activity with our token: stored if Strava returns it, deleted
+  if not. Deauthorization deletes everything.
+- The client's `supabase-provider.listEvents` calls each connected OAuth
+  source's `syncPath` before reading, and reads the cache even if that fails.
+- Events keep only `sport_type`, moving time (value, seconds) and distance
+  (meta, metres); `localDate` is the date part of `start_date_local`.
+- Attribution: `Connector.attribution`; the scorecard shows "Powered by Strava"
+  under the grid when a connected Strava source's habit is on screen (plain
+  text is allowed by Strava's brand guidelines).
+- Secrets: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_VERIFY_TOKEN`
+  (function secrets). Optional `HABITS_APP_ORIGINS` for return URLs and CORS.
 
 ---
 

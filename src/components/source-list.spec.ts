@@ -179,3 +179,115 @@ describe('<source-list>', () => {
     expect(text($(el2, '[role=alert]'))).toBe("Couldn't load sources.");
   });
 });
+
+describe('<source-list> with Strava', () => {
+  beforeEach(() => vi.stubGlobal('confirm', () => true));
+  afterEach(() => {
+    document.body.replaceChildren();
+    vi.unstubAllGlobals();
+  });
+
+  /** A live-like provider: OAuth on, with an optional Strava source already there. */
+  function live(strava?: { connected: boolean; athleteName?: string }) {
+    const p = fresh();
+    const list = p.listSources;
+    const calls: string[] = [];
+    const source = {
+      id: 'strava-1',
+      kind: 'strava' as const,
+      label: 'Strava',
+      config: strava ?? {},
+      createdAt: 'T',
+    };
+    return Object.assign(p, {
+      oauth: true,
+      calls,
+      listSources: async () => [...(await list()), ...(strava ? [source] : [])],
+      connectOAuth: async (kind: string, returnTo: string) => {
+        calls.push(`connect ${kind} ${returnTo}`);
+        return 'https://www.strava.com/oauth/authorize?state=x';
+      },
+      disconnectOAuth: async (s: { id: string }) => {
+        calls.push(`disconnect ${s.id}`);
+        source.config = { connected: false };
+      },
+    });
+  }
+
+  it('sends the browser to Strava to connect', async () => {
+    const p = live();
+    const el = await mount(p);
+    const navigate = vi.fn();
+    el.navigate = navigate;
+    await connect(el, 'Strava');
+    expect(p.calls).toEqual([`connect strava ${location.origin}${location.pathname}`]);
+    expect(navigate).toHaveBeenCalledWith('https://www.strava.com/oauth/authorize?state=x');
+  });
+
+  it('says when connecting cannot start', async () => {
+    const p = live();
+    p.connectOAuth = async () => {
+      throw new Error('503');
+    };
+    const el = await mount(p);
+    await connect(el, 'Strava');
+    expect(text($(el, '.message'))).toBe("Couldn't start connecting Strava. Try again later.");
+  });
+
+  it('is not offered in demo mode', async () => {
+    const el = await mount(fresh());
+    button(el, 'Connect an app').click();
+    await settle(el);
+    expect(button(el, 'Strava')).toBeUndefined();
+  });
+
+  it('offers the suggested habits after connecting', async () => {
+    const p = live({ connected: true, athleteName: 'Tim' });
+    const el = document.createElement('source-list');
+    el.oauthOutcome = 'connected';
+    el.provider = p;
+    el.now = () => now;
+    document.body.append(el);
+    await settle(el);
+    expect(text($(el, '#issued-heading'))).toBe('Strava is connected');
+    expect($(el, '#token')).toBeNull();
+    expect(text($(el, 'fieldset'))).toContain('Run');
+    button(el, 'Done').click();
+    await settle(el);
+    const run = (await p.listHabits()).find((h) => h.match.sourceIds?.includes('strava-1'));
+    expect(run?.match.where).toEqual({ sport_type: ['Run', 'TrailRun', 'VirtualRun'] });
+    expect(text($(el, '.message'))).toBe('Added Run, Ride, Any activity.');
+    expect(text($(el, '.list .detail'))).toBe('Connected as Tim');
+  });
+
+  it.each([
+    ['denied', "Strava wasn't connected."],
+    ['missing-scope', 'Strava was connected without permission'],
+    ['something-else', "Couldn't connect Strava. Try again."],
+  ])('explains the "%s" outcome', async (outcome, message) => {
+    const el = document.createElement('source-list');
+    el.oauthOutcome = outcome;
+    el.provider = live();
+    document.body.append(el);
+    await settle(el);
+    expect(text($(el, '.message'))).toContain(message);
+  });
+
+  it('disconnects, warning that activities are removed, and offers to reconnect', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal('confirm', (q: string) => (asked.push(q), true));
+    const p = live({ connected: true });
+    const el = await mount(p);
+    expect(text($(el, '.list .detail'))).toBe('Connected');
+    button(el, 'Disconnect Strava').click();
+    await settle(el);
+    expect(asked[0]).toContain('activities are removed');
+    expect(p.calls).toEqual(['disconnect strava-1']);
+    expect(text($(el, '.list .detail'))).toBe('Disconnected');
+
+    el.navigate = vi.fn();
+    button(el, 'Reconnect Strava').click();
+    await settle(el);
+    expect(el.navigate).toHaveBeenCalled();
+  });
+});

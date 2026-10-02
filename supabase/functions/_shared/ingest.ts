@@ -100,8 +100,8 @@ export function parseBatch(body: unknown, connector: ServerConnector): ParsedBat
   return { ok: true, events: [...byId.values()], rejected };
 }
 
-/** An events row for the database. */
-export function toRow(e: IngestEvent, ownerId: string, sourceId: string) {
+/** An events row for the database. `expiresAt` marks a cached row (see ServerConnector.cacheDays). */
+export function toRow(e: IngestEvent, ownerId: string, sourceId: string, expiresAt?: string) {
   return {
     owner_id: ownerId,
     source_id: sourceId,
@@ -112,6 +112,7 @@ export function toRow(e: IngestEvent, ownerId: string, sourceId: string) {
     value: e.value ?? null,
     unit: e.unit ?? null,
     meta: e.meta ?? null,
+    ...(expiresAt ? { expires_at: expiresAt } : {}),
   };
 }
 

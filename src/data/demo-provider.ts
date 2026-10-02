@@ -241,6 +241,13 @@ export function createDemoProvider({
 
   return {
     canEdit: !readOnly,
+    oauth: false,
+    connectOAuth: async () => {
+      throw new Error('Connecting Strava needs the live app.');
+    },
+    disconnectOAuth: async () => {
+      throw new Error('Connecting Strava needs the live app.');
+    },
     // Demo tokens are never sent anywhere; this URL only fills the connect screen.
     ingestUrl: 'https://demo.invalid/functions/v1/ingest',
     listSources: async () => [...sources, ...state().sources],

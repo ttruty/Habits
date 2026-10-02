@@ -118,7 +118,8 @@ function omitId(row: EventRow) {
 describe('createSupabaseProvider', () => {
   it('pages through events until a short page', async () => {
     const full = Array.from({ length: PAGE }, (_, i) => ({ ...eventRow, id: `e${i}` }));
-    const { client, calls } = fakeClient([{ data: full }, { data: [eventRow] }]);
+    // First the sources (no connected OAuth source, so no cache refresh), then two pages.
+    const { client, calls } = fakeClient([{ data: [] }, { data: full }, { data: [eventRow] }]);
     const events = await createSupabaseProvider(client, URL).listEvents({
       from: '2026-01-01',
       to: '2026-10-01',
@@ -225,5 +226,80 @@ describe('ingest tokens', () => {
     ]);
     await p.revokeIngestTokens('s1');
     expect(calls.filter((c) => c[0] === 'update')).toHaveLength(1);
+  });
+});
+
+describe('OAuth sources', () => {
+  /** A client whose functions.invoke records calls and answers with `reply`. */
+  function withFunctions(
+    results: { data?: unknown }[],
+    reply: { data?: unknown; error?: unknown },
+  ) {
+    const f = fakeClient(results);
+    const invoked: [string, unknown][] = [];
+    (f.client as unknown as { functions: unknown }).functions = {
+      invoke: async (name: string, opts: unknown) => {
+        invoked.push([name, opts]);
+        return { data: reply.data ?? null, error: reply.error ?? null };
+      },
+    };
+    return { ...f, invoked };
+  }
+
+  it('refreshes connected OAuth caches before reading events', async () => {
+    const { client, invoked } = withFunctions(
+      [
+        {
+          data: [
+            { kind: 'strava', config: { connected: true } },
+            { kind: 'strava', config: { connected: false } },
+            { kind: 'deckfit', config: {} },
+          ],
+        },
+        { data: [] },
+      ],
+      {},
+    );
+    await createSupabaseProvider(client, URL).listEvents({ from: '2026-09-01', to: '2026-10-01' });
+    expect(invoked).toEqual([['strava-oauth/sync', { body: { from: '2026-09-01' } }]]);
+  });
+
+  it('still reads cached events when the refresh fails', async () => {
+    const { client } = withFunctions(
+      [{ data: [{ kind: 'strava', config: { connected: true } }] }, { data: [eventRow] }],
+      {},
+    );
+    (client as unknown as { functions: { invoke: () => Promise<never> } }).functions.invoke = () =>
+      Promise.reject(new Error('offline'));
+    const events = await createSupabaseProvider(client, URL).listEvents({
+      from: '2026-09-01',
+      to: '2026-10-01',
+    });
+    expect(events).toHaveLength(1);
+  });
+
+  it("starts and ends a connection through the kind's function", async () => {
+    const ok = withFunctions([], { data: { url: 'https://www.strava.com/oauth/authorize?x' } });
+    const p = createSupabaseProvider(ok.client, URL);
+    expect(p.oauth).toBe(true);
+    expect(await p.connectOAuth('strava', 'https://timtruty.com/Habits/')).toContain('strava.com');
+    await p.disconnectOAuth({
+      id: 's9',
+      kind: 'strava',
+      label: 'Strava',
+      config: {},
+      createdAt: 'T',
+    });
+    expect(ok.invoked).toEqual([
+      ['strava-oauth/connect', { body: { returnTo: 'https://timtruty.com/Habits/' } }],
+      ['strava-oauth/disconnect', { body: { sourceId: 's9' } }],
+    ]);
+
+    const bad = withFunctions([], { error: new Error('503') });
+    const q = createSupabaseProvider(bad.client, URL);
+    await expect(q.connectOAuth('strava', 'x')).rejects.toThrow("Couldn't start connecting");
+    await expect(
+      q.disconnectOAuth({ id: 's9', kind: 'strava', label: 'Strava', config: {}, createdAt: 'T' }),
+    ).rejects.toThrow("Couldn't disconnect");
   });
 });

@@ -1,10 +1,48 @@
 import type { Connector } from './types';
 
-// Event types only for now. Presets arrive with the connector itself (see plan.md).
+const RUNS = ['Run', 'TrailRun', 'VirtualRun'];
+const RIDES = [
+  'Ride',
+  'VirtualRide',
+  'GravelRide',
+  'MountainBikeRide',
+  'EBikeRide',
+  'EMountainBikeRide',
+];
+
+// Strava activities arrive by webhook and are refetched on view: Strava's API Policy allows caching
+// its data for 7 days at most. value = moving time (s); meta = { sport_type, distance (m) }.
 export const strava: Connector = {
   kind: 'strava',
   displayName: 'Strava',
   mode: 'oauth',
-  eventTypes: [{ type: 'activity.created', unit: 'meters', label: 'Activity' }],
-  presets: [],
+  eventTypes: [{ type: 'activity.created', unit: 'seconds', label: 'Activity' }],
+  presets: [
+    {
+      name: 'Run',
+      icon: '🏃',
+      color: 'orange',
+      match: { types: ['activity.created'], where: { sport_type: RUNS } },
+      rule: { aggregate: 'count', atLeast: 1 },
+      target: { perWeek: 3 },
+    },
+    {
+      name: 'Ride',
+      icon: '🚴',
+      color: 'blue',
+      match: { types: ['activity.created'], where: { sport_type: RIDES } },
+      rule: { aggregate: 'count', atLeast: 1 },
+      target: { perWeek: 2 },
+    },
+    {
+      name: 'Any activity',
+      icon: '🔥',
+      color: 'red',
+      match: { types: ['activity.created'] },
+      rule: { aggregate: 'count', atLeast: 1 },
+      target: { perWeek: 5 },
+    },
+  ],
+  attribution: { text: 'Powered by Strava', href: 'https://www.strava.com' },
+  syncPath: 'strava-oauth/sync',
 };

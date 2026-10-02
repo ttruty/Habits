@@ -17,5 +17,6 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "clients", "supabase/functions/_shared"]
+  "include": ["src", "clients", "supabase/functions/_shared"],
+  "exclude": ["supabase/functions/_shared/strava-store.ts"]
 }

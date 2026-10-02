@@ -418,3 +418,11 @@ enabled = true
 # The ingest token is the credential, not a Supabase JWT.
 [functions.ingest]
 verify_jwt = false
+
+# Strava's redirect carries no Supabase session; owner routes check the JWT themselves.
+[functions.strava-oauth]
+verify_jwt = false
+
+# Called by Strava.
+[functions.strava-webhook]
+verify_jwt = false

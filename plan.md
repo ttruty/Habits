@@ -143,6 +143,8 @@ while offline.
 
 ## Phase 4: Embed and sharing
 
+> **Deferred** (2026-10-01): done after Phase 5 at the owner's request.
+
 **Goal:** put the scorecard on another site.
 
 - [ ] `share_tokens`: create and revoke them in Settings. Options: which
@@ -167,20 +169,20 @@ and revoking the token blanks it.
 
 - [ ] Register a Strava API app. Store `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`
       and `STRAVA_VERIFY_TOKEN` as function secrets.
-- [ ] `strava-oauth`: redirect → code exchange → store refresh token
+- [x] `strava-oauth`: redirect → code exchange → store refresh token
       server-side (on the Source, encrypted or in a server-only table) →
       refresh on expiry. Scope `activity:read` (`activity:read_all` only if
       private activities should count).
-- [ ] `strava-webhook`: answer the `hub.challenge` validation. On
+- [x] `strava-webhook`: answer the `hub.challenge` validation. On
       `object_type=activity, aspect_type=create|update|delete`, fetch the
       activity and normalize it to `activity.created` with `meta.sport_type`,
       value = `moving_time`, and `localDate` from `start_date_local`. On a
       delete, remove the event.
-- [ ] Backfill the last 60 days on connect. Respect the rate limits (200 per
+- [x] Backfill the last 60 days on connect. Respect the rate limits (200 per
       15 min, 2,000 per day).
-- [ ] Presets: "Run 3×/week" (`where: { sport_type: ['Run','TrailRun','VirtualRun'] }`)
+- [x] Presets: "Run 3×/week" (`where: { sport_type: ['Run','TrailRun','VirtualRun'] }`)
       and "Ride", "Any activity".
-- [ ] Show "Powered by Strava" attribution on Strava-backed rows.
+- [x] Show "Powered by Strava" attribution on Strava-backed rows.
 
 **Done when:** logging a run on Strava fills the cell within a minute, and
 deleting the run clears it.
@@ -312,6 +314,25 @@ entry" (see CLAUDE.md, rule 4).
 ## Notes log
 
 Append findings, surprises and as-built changes here, newest first.
+
+- _2026-10-01_: Phase 5 (Strava) built before Phase 4, at the owner's request.
+  - **Strava's API Policy §6.2 caps caching Strava data at 7 days.** No
+    exception for an athlete's own data was found (only an unofficial community
+    answer). Decided: Strava events are a cache. Each row has `expires_at`
+    (7 days), a daily `pg_cron` job deletes expired rows, and the app asks
+    `strava-oauth/sync` to refetch a range from Strava when it's viewed (no-op
+    if fetched in the last 6 hours). A year of history is 1–3 API calls.
+  - Scope is `activity:read_all`: private activities count (owner's choice).
+  - Value is **moving time in seconds** (not distance); distance is in meta.
+    Presets: Run 3×/week, Ride 2×/week, Any activity 5×/week, all counts.
+  - Webhooks aren't signed by Strava, so every webhook is treated as "refetch
+    this activity"; a forged one can only cause a refetch.
+  - Server connectors gained `ingest` (only push apps accept ingest tokens) and
+    `cacheDays`.
+  - Attribution is plain-text "Powered by Strava" under the grid, which the
+    brand guidelines allow; the official logo can replace it later.
+  - Deployed and smoke-tested without Strava credentials. Waiting on the
+    owner to register the Strava API app and set its secrets.
 
 - _2026-10-01_: Phase 3 built. As-built differences from the plan:
   - `/ingest` is deployed (`verify_jwt = false`; the ingest token is the
