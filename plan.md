@@ -315,6 +315,15 @@ entry" (see CLAUDE.md, rule 4).
 
 Append findings, surprises and as-built changes here, newest first.
 
+- _2026-10-02_: Bug: connecting Withings failed with a CORS error. The shared
+  `corsHeaders()` allowed only `authorization, content-type`, but supabase-js
+  `functions.invoke` also sends `apikey` and `x-client-info`, so every
+  browser call to `oauth/*` (connect, sync, disconnect) was blocked. The sync
+  refresh had been failing silently, since it's best-effort. Fixed in
+  `ALLOWED_HEADERS` (+ `x-region`, `x-retry-count`), with a unit test, and
+  verified with a real cross-origin request from `timtruty.com`. Unit tests
+  had mocked `invoke`, so no test ever ran a browser preflight.
+
 - _2026-10-01_: **Withings** added (workouts and daily steps), outside the
   phase plan at the owner's request.
   - Adding it exposed that Phase 5's Strava code wasn't generic (its own table

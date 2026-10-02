@@ -128,6 +128,16 @@ export async function sha256Hex(text: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Request headers browsers may send to our functions (the reporter, and supabase-js). */
+export const ALLOWED_HEADERS = [
+  'authorization',
+  'apikey',
+  'content-type',
+  'x-client-info',
+  'x-region',
+  'x-retry-count',
+];
+
 /** CORS headers: the request's origin if it's allowed, nothing otherwise. */
 export function corsHeaders(
   origin: string | null,
@@ -135,7 +145,9 @@ export function corsHeaders(
 ): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, content-type',
+    // supabase-js (functions.invoke) sends apikey and x-client-info, and sometimes x-region and
+    // x-retry-count; a preflight that doesn't allow them blocks the request in the browser.
+    'Access-Control-Allow-Headers': ALLOWED_HEADERS.join(', '),
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
