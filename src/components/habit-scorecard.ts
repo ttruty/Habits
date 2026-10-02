@@ -3,7 +3,6 @@ import { createDemoProvider } from '../data/demo-provider';
 import type { DataProvider } from '../data/provider';
 import { checkInEvent, checkInsOn, manualSourceOf } from '../connectors/manual';
 import { connectorFor } from '../connectors/registry';
-import './day-detail';
 import { formatDate } from '../format';
 import type { DateKey, DateRange, Habit, HabitEvent, Source } from '../model';
 import {
@@ -22,6 +21,9 @@ import { cellStatus } from './day-cell';
 import { formatValue } from '../format';
 import { countsFor, dedupe } from '../scoring/score';
 import { base } from '../styles/base';
+import { ownTokens } from '../styles/tokens';
+import { habitVars } from '../ui/vars';
+import { habitIcon } from '../ui/icons';
 import { scoreRow } from './score-row';
 
 export type Theme = 'auto' | 'light' | 'dark';
@@ -57,7 +59,8 @@ export class HabitScorecard extends LitElement {
     share: { type: String },
     provider: { attribute: false },
     today: { attribute: false },
-    anchor: { state: true },
+    anchor: { attribute: false },
+    toolbar: { attribute: false },
     habits: { state: true },
     sources: { state: true },
     events: { state: true },
@@ -79,7 +82,9 @@ export class HabitScorecard extends LitElement {
   declare today: DateKey | undefined;
 
   /** A day inside the period on screen. Undefined = the period containing today. */
-  declare private anchor: DateKey | undefined;
+  declare anchor: DateKey | undefined;
+  /** False hides the date and view controls (the Dashboard drives the month itself). */
+  declare toolbar: boolean;
   declare private habits: Habit[];
   declare private sources: Source[];
   declare private events: HabitEvent[];
@@ -100,6 +105,7 @@ export class HabitScorecard extends LitElement {
 
   constructor() {
     super();
+    this.toolbar = true;
     this.theme = 'auto';
     this.view = 'week';
     this.weeks = 1;
@@ -114,6 +120,9 @@ export class HabitScorecard extends LitElement {
 
   override connectedCallback() {
     super.connectedCallback();
+    // On someone else's page there are no design tokens around us: bring our own.
+    const has = getComputedStyle(this).getPropertyValue('--color-bg').trim() !== '';
+    if (!has || this.hasAttribute('own-tokens')) this.setAttribute('own-tokens', '');
     document.addEventListener('visibilitychange', this.onVisible);
   }
 
@@ -200,7 +209,9 @@ export class HabitScorecard extends LitElement {
     await this.load();
   }
 
-  private openDay(habit: Habit, date: DateKey, opener: HTMLElement) {
+  private async openDay(habit: Habit, date: DateKey, opener: HTMLElement) {
+    // Loaded on first use: the read-only embed never opens it, so it stays out of embed.js.
+    await import('./day-detail');
     this.opener = opener;
     this.editing = { habit, date };
     void this.updateComplete.then(() =>
@@ -270,7 +281,7 @@ export class HabitScorecard extends LitElement {
 
     return html`
       ${this.heading ? html`<h1>${this.heading}</h1>` : nothing}
-      <div class="bar">
+      <div class="bar" ?hidden=${!this.toolbar}>
         <div class="nav">
           <button type="button" aria-label="Previous ${unit}" @click=${() => this.step(-1)}>
             <span aria-hidden="true">‹</span>
@@ -397,11 +408,10 @@ export class HabitScorecard extends LitElement {
           const spoken = metric
             ? `${habit.name}, last 12 weeks: ${formatValue(s.total, unit, 'long')} in total.`
             : `${habit.name}, last 12 weeks: done ${s.done} of ${s.days} days, ${pct}%. Best run ${s.bestRun} ${s.bestRun === 1 ? 'day' : 'days'}.`;
-          return html`<section
-            class="heat"
-            style="--hs-habit: var(--hs-color-${habit.color}, var(--hs-done))"
-          >
-            <h3><span class="icon" aria-hidden="true">${habit.icon}</span>${habit.name}</h3>
+          return html`<section class="heat" style=${habitVars(habit.color)}>
+            <h2>
+              <span class="icon" aria-hidden="true">${habitIcon(habit.icon, 18)}</span>${habit.name}
+            </h2>
             <div class="heat-grid" role="img" aria-label=${spoken}>
               ${weekdays.map(
                 (w, i) =>
@@ -443,58 +453,64 @@ export class HabitScorecard extends LitElement {
   }
 
   static override styles = [
+    ownTokens,
     ...base,
     css`
       :host {
         container-type: inline-size;
-        background: var(--hs-bg);
-        padding: calc(var(--hs-space) * 2);
-        border-radius: var(--hs-radius);
+        background: var(--color-surface);
+        padding: var(--space-4);
+        border-radius: var(--radius-lg);
       }
       h1 {
-        font-size: 1.25rem;
-        margin: 0 0 calc(var(--hs-space) * 1.5);
+        font: var(--text-title);
+        margin: 0 0 var(--space-3);
       }
 
-      /* Toolbar */
+      /* Toolbar (hidden when the Dashboard drives the month) */
+      .bar[hidden] {
+        display: none;
+      }
       .bar {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
-        gap: var(--hs-space);
-        margin-bottom: calc(var(--hs-space) * 1.5);
+        gap: var(--space-2);
+        margin-bottom: var(--space-3);
       }
       .nav,
       .toggle {
         display: flex;
         align-items: center;
-        gap: calc(var(--hs-space) / 2);
+        flex-wrap: wrap;
+        gap: var(--space-1);
       }
       .range {
-        margin: 0 calc(var(--hs-space) / 2);
-        font-weight: 600;
-        min-width: 9.5rem;
+        margin: 0 var(--space-1);
+        font: var(--text-label);
+        min-width: 0;
         text-align: center;
       }
       .toggle {
         gap: 0;
       }
       .toggle button:first-child {
-        border-radius: var(--hs-radius) 0 0 var(--hs-radius);
+        border-radius: var(--radius-md) 0 0 var(--radius-md);
       }
       .toggle button:last-child {
-        border-radius: 0 var(--hs-radius) var(--hs-radius) 0;
+        border-radius: 0 var(--radius-md) var(--radius-md) 0;
         border-left: 0;
       }
-      .toggle button[aria-pressed='true'] {
-        background: var(--hs-text);
-        color: var(--hs-bg);
-        border-color: var(--hs-text);
+      .toggle button[aria-pressed='true'],
+      .toggle button[aria-pressed='true']:hover {
+        background: var(--color-primary);
+        color: var(--color-on-primary);
+        border-color: var(--color-primary);
       }
       .status {
-        margin: var(--hs-space) 0;
-        color: var(--hs-text-muted);
+        margin: var(--space-2) 0;
+        color: var(--color-ink-3);
       }
 
       /* Grid */
@@ -518,41 +534,44 @@ export class HabitScorecard extends LitElement {
         font-weight: normal;
       }
       thead th {
-        color: var(--hs-text-muted);
-        font-size: 0.8125rem;
-        padding-bottom: calc(var(--hs-space) / 2);
+        color: var(--color-ink-3);
+        font: var(--text-caption);
+        padding-bottom: var(--space-1);
       }
       th.name {
         position: sticky;
         left: 0;
         z-index: 1;
-        background: var(--hs-bg);
+        background: var(--color-surface);
         text-align: left;
-        padding-right: calc(var(--hs-space) / 2);
+        padding-right: var(--space-1);
         overflow-wrap: break-word;
         hyphens: auto;
-        font-weight: 500;
-        color: var(--hs-text);
+        font: var(--text-label);
+        color: var(--color-ink);
       }
       tbody th.name {
-        padding-block: calc(var(--hs-space) * 0.75);
+        padding-block: var(--space-2);
       }
       tbody tr + tr > * {
-        border-top: 1px solid var(--hs-border);
+        border-top: 1px solid var(--color-border);
       }
       .icon {
-        margin-right: 0.3em;
+        display: inline-flex;
+        vertical-align: -3px;
+        margin-right: var(--space-2);
+        color: var(--habit);
       }
       .day .dow,
       .day .dom {
         display: block;
       }
       .day.today {
-        color: var(--hs-text);
-        font-weight: 600;
+        color: var(--color-ink);
+        font-weight: 800;
       }
       .today {
-        background: var(--hs-surface);
+        background: var(--color-surface-2);
       }
       .cell {
         width: 2.25rem;
@@ -560,16 +579,17 @@ export class HabitScorecard extends LitElement {
         height: 2.5rem;
       }
       .summary {
-        padding-inline: calc(var(--hs-space) / 2);
+        font: var(--text-label);
+        padding-inline: var(--space-1);
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
       }
       .summary .met {
-        color: var(--hs-done);
+        color: var(--color-success);
       }
       .summary .unit {
-        color: var(--hs-text-muted);
-        font-size: 0.8em;
+        color: var(--color-ink-3);
+        font: var(--text-micro);
         margin-left: 1px;
       }
 
@@ -577,12 +597,11 @@ export class HabitScorecard extends LitElement {
       .heatmaps {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-        gap: calc(var(--hs-space) * 2) calc(var(--hs-space) * 3);
+        gap: var(--space-4) var(--space-6);
       }
-      .heat h3 {
-        font-size: 0.9375rem;
-        font-weight: 500;
-        margin: 0 0 calc(var(--hs-space) / 2);
+      .heat h2 {
+        font: var(--text-label);
+        margin: 0 0 var(--space-1);
       }
       /* Weekday labels, then 12 week columns, filling the card's width. */
       .heat-grid {
@@ -594,74 +613,74 @@ export class HabitScorecard extends LitElement {
         max-width: 24rem;
       }
       .heat-day {
-        font-size: 0.625rem;
-        line-height: 1;
-        color: var(--hs-text-muted);
+        font: var(--text-micro);
+        color: var(--color-ink-3);
         align-self: center;
         padding-right: 2px;
       }
       .heat-cell {
         aspect-ratio: 1;
         border-radius: 2px;
-        background: var(--hs-surface);
-        box-shadow: inset 0 0 0 1px var(--hs-border);
+        background: var(--color-surface-2);
+        box-shadow: inset 0 0 0 1px var(--color-border);
       }
       .heat-cell.l-1 {
-        background: color-mix(in srgb, var(--hs-habit) 25%, var(--hs-bg));
+        background: color-mix(in srgb, var(--habit) 25%, var(--color-surface));
         box-shadow: none;
       }
       .heat-cell.l-2 {
-        background: color-mix(in srgb, var(--hs-habit) 45%, var(--hs-bg));
+        background: color-mix(in srgb, var(--habit) 45%, var(--color-surface));
         box-shadow: none;
       }
       .heat-cell.l-3 {
-        background: color-mix(in srgb, var(--hs-habit) var(--hs-level3-mix), var(--hs-bg));
+        background: color-mix(in srgb, var(--habit) 75%, var(--color-surface));
         box-shadow: none;
       }
       .heat-cell.l-4 {
-        background: var(--hs-habit);
+        background: var(--habit);
         box-shadow: none;
       }
+      /* Over a limit: outlined, not red (no red failure states, DESIGN_SYSTEM.md §1). */
       .heat-cell.l-over {
-        background: var(--hs-over);
-        box-shadow: none;
+        background: var(--color-surface-2);
+        box-shadow: inset 0 0 0 2px var(--color-ink-3);
       }
       .heat-cell.l-inactive,
       .heat-cell.l-future {
         background: transparent;
-        box-shadow: inset 0 0 0 1px var(--hs-border);
+        box-shadow: inset 0 0 0 1px var(--color-border);
         opacity: 0.4;
       }
       .heat-stats {
-        margin: calc(var(--hs-space) / 2) 0 0;
-        font-size: 0.8125rem;
-        color: var(--hs-text-muted);
+        margin: var(--space-1) 0 0;
+        font: var(--text-caption);
+        color: var(--color-ink-3);
       }
 
       dialog {
-        width: min(28rem, calc(100vw - 2rem));
-        border: 1px solid var(--hs-border);
-        border-radius: var(--hs-radius);
-        background: var(--hs-bg);
-        color: var(--hs-text);
-        padding: calc(var(--hs-space) * 2);
+        width: min(28rem, calc(100vw - 2 * var(--gutter)));
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        background: var(--color-surface);
+        color: var(--color-ink);
+        padding: var(--space-5);
       }
       dialog::backdrop {
-        background: rgb(0 0 0 / 0.4);
+        background: color-mix(in srgb, var(--color-ink) 40%, transparent);
       }
       .dialog-actions {
         display: flex;
         justify-content: flex-end;
-        margin-top: var(--hs-space);
+        margin-top: var(--space-2);
       }
       .tick.open .value {
         display: block;
       }
 
       .attribution {
-        margin: var(--hs-space) 0 0;
-        font-size: 0.75rem;
-        color: var(--hs-text-muted);
+        margin: var(--space-2) 0 0;
+        font: var(--text-caption);
+        color: var(--color-ink-3);
       }
       .attribution a {
         color: inherit;
@@ -684,7 +703,7 @@ export class HabitScorecard extends LitElement {
       }
       .tick:hover .mark.missed,
       .tick:hover .mark.pending {
-        outline: 1px solid var(--hs-text-muted);
+        outline: 1px solid var(--color-ink-3);
         outline-offset: 4px;
         border-radius: 50%;
       }
@@ -701,49 +720,51 @@ export class HabitScorecard extends LitElement {
         width: 0.875rem;
         height: 0.875rem;
         border-radius: 50%;
-        background: var(--hs-habit);
+        background: var(--habit);
       }
       .mark.missed {
         width: 0.3rem;
         height: 0.3rem;
         border-radius: 50%;
-        background: var(--hs-text-muted);
+        background: var(--color-ink-3);
       }
       .mark.pending {
         width: 0.875rem;
         height: 0.875rem;
         border-radius: 50%;
-        border: 2px solid var(--hs-text-muted);
+        border: 2px solid var(--color-ink-3);
       }
       .mark.inactive {
         width: 0.5rem;
         height: 2px;
-        background: var(--hs-border);
+        background: var(--color-border);
       }
       .mark.over {
-        color: var(--hs-over);
-        font-weight: 700;
+        color: var(--color-ink-2);
+        font: var(--text-label);
         line-height: 1;
       }
       .mark.metric {
         width: 0.875rem;
         height: 0.875rem;
         border-radius: 3px;
-        background: var(--hs-habit);
+        background: var(--habit);
       }
       .mark.level-0 {
         background: transparent;
-        border: 1px solid var(--hs-border);
+        border: 1px solid var(--color-border);
       }
       /* Tints, not opacity, so a number inside stays readable. */
       .mark.level-1 {
-        background: color-mix(in srgb, var(--hs-habit) 25%, var(--hs-bg));
+        background: color-mix(in srgb, var(--habit) 25%, var(--color-surface));
       }
       .mark.level-2 {
-        background: color-mix(in srgb, var(--hs-habit) 45%, var(--hs-bg));
+        background: color-mix(in srgb, var(--habit) 45%, var(--color-surface));
       }
+      /* The strongest tint is the solid fill: 25% and 45% tints take ink text at AA in both
+         themes, and the solid fill takes its -on colour (contrast worked out for every habit). */
       .mark.level-3 {
-        background: color-mix(in srgb, var(--hs-habit) var(--hs-level3-mix), var(--hs-bg));
+        background: var(--habit);
       }
 
       /* Minutes inside the square (minute habits, week view). */
@@ -753,23 +774,19 @@ export class HabitScorecard extends LitElement {
         height: 1.375rem;
         padding: 0 0.2rem;
         border-radius: 5px;
-        font-size: 0.6875rem;
-        font-weight: 600;
-        line-height: 1;
+        font: var(--text-micro);
         font-variant-numeric: tabular-nums;
-        color: var(--hs-text);
+        color: var(--color-ink);
       }
       .mark.done.minutes,
+      .mark.level-3.minutes,
       .mark.level-4.minutes {
-        color: var(--hs-on-habit);
-      }
-      .mark.level-3.minutes {
-        color: var(--hs-level3-ink);
+        color: var(--on);
       }
       .value {
         display: block;
-        font-size: 0.6875rem;
-        color: var(--hs-text-muted);
+        font: var(--text-micro);
+        color: var(--color-ink-3);
         font-variant-numeric: tabular-nums;
       }
 
@@ -780,11 +797,12 @@ export class HabitScorecard extends LitElement {
           min-width: 1.5rem;
         }
         .summary {
-          padding-inline: 0.125rem;
-          font-size: 0.875rem;
+          padding-inline: 2px;
+          font: var(--text-caption);
+          font-weight: 700;
         }
         thead th.summary {
-          font-size: 0.75rem;
+          font: var(--text-micro);
         }
       }
 

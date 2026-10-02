@@ -315,6 +315,26 @@ entry" (see CLAUDE.md, rule 4).
 
 Append findings, surprises and as-built changes here, newest first.
 
+- _2026-10-02_: **Redesign to `design/`** (the owner's design system): full adoption.
+  - Screens: Today (week strip, progress, Up next / Done habit cards with check circles), Progress
+    (list, then hero + 3 stat tiles + 5-week heatmap that opens days for corrections),
+    Create/Edit with a live preview, Manage, Sources, More (theme, Data, account), and the habit
+    × day grid behind Today's calendar button. ≥ 1024 px: the Dashboard. Floating tab bar
+    Today · Progress · [+] · Sources · More (no reminders in this app).
+  - Model: habit colours are palette keys, icons are icon keys (Lucide line icons; no emoji).
+    Migration `20261004000000_design_keys.sql` and `normalizeHabit()` map old values
+    (purple → violet, red → coral, teal → green; emoji → icon keys).
+  - Font self-hosted. Theme on `<html data-theme>` via `src/theme.ts` only.
+  - Accessibility beat the spec in three places (all in DESIGN_SYSTEM.md §10): meta text at full
+    opacity, an inverted streak chip, and heatmap tints with tested text pairs.
+  - Bugs caught on the way: `:host([a])[b]` isn't valid CSS (the embed's dark theme silently
+    didn't apply), and the build minifies `[data-theme="dark"]` to `[data-theme=dark]`, which
+    the scoping missed in production only. Both are now unit-tested; Playwright checks the
+    embed's dark surface on a foreign page.
+  - Embed size: a host page loads `embed.js` plus a shared chunk; the size check now follows
+    static imports (23.9 KB of 25). The correction dialog is lazy-loaded (the embed never opens
+    it). Next feature that touches the embed should watch this budget.
+
 - _2026-10-02_: **Phase 7 (polish) built**, skipping Phases 4, 5b and 6 at the
   owner's request (they remain open above).
   - PWA: `manifest.webmanifest`, icons rendered by `scripts/make-icons.mjs`

@@ -71,13 +71,13 @@ export class SignInForm extends LitElement {
     css`
       label {
         display: block;
-        font-weight: 500;
-        margin-bottom: calc(var(--hs-space) / 2);
+        font: var(--text-label);
+        margin-bottom: var(--space-1);
       }
       .row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--hs-space);
+        gap: var(--space-2);
       }
       input {
         flex: 1 1 14rem;

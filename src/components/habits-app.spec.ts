@@ -4,6 +4,8 @@ import { linkErrorFromUrl, type Auth } from '../data/auth';
 import './habits-app';
 import type { HabitsApp } from './habits-app';
 
+const today = '2026-10-01';
+
 function fakeAuth(initial: string | null): Auth & { set(email: string | null): void } {
   let listener: (email: string | null) => void = () => {};
   return {
@@ -20,46 +22,98 @@ function fakeAuth(initial: string | null): Auth & { set(email: string | null): v
 
 async function mount(props: Partial<HabitsApp>) {
   const app = document.createElement('habits-app');
-  Object.assign(app, props);
+  Object.assign(app, { today, ...props });
   document.body.append(app);
   await settle(app);
   return app;
 }
 
 async function settle(app: HabitsApp) {
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     await app.updateComplete;
     await new Promise((r) => setTimeout(r));
   }
 }
 
 const $ = (app: HabitsApp, sel: string) => app.shadowRoot!.querySelector(sel);
-const anyButton = (app: HabitsApp, name: string) =>
-  [...app.shadowRoot!.querySelectorAll('button')].find(
-    (b) => b.textContent?.trim() === name,
-  ) as HTMLButtonElement;
-const navButton = (app: HabitsApp, name: string) =>
-  [...app.shadowRoot!.querySelectorAll('nav button')].find(
-    (b) => b.textContent?.trim() === name,
+const tab = (app: HabitsApp, name: string) =>
+  [...app.shadowRoot!.querySelectorAll('.tab-bar button')].find(
+    (b) => b.getAttribute('aria-label') === name,
   ) as HTMLButtonElement;
 
 describe('<habits-app>', () => {
   afterEach(() => document.body.replaceChildren());
 
-  it('runs on demo data with no sign-in', async () => {
+  it('opens on Today with the floating tab bar', async () => {
     const app = await mount({ provider: createDemoProvider() });
-    expect($(app, '.demo')?.textContent).toContain('Demo data');
-    expect($(app, 'habit-scorecard')).not.toBeNull();
-    expect(anyButton(app, 'Sign out')).toBeUndefined();
+    expect($(app, 'today-page')).not.toBeNull();
+    const labels = [...app.shadowRoot!.querySelectorAll('.tab-bar button')].map((b) =>
+      b.getAttribute('aria-label'),
+    );
+    expect(labels).toEqual(['Today', 'Progress', 'New habit', 'Sources', 'More']);
+    expect(tab(app, 'Today').getAttribute('aria-current')).toBe('page');
+    expect(document.title).toBe('Habits');
   });
 
-  it('switches pages', async () => {
+  it('goes between tabs, naming each page', async () => {
     const app = await mount({ provider: createDemoProvider() });
-    expect(navButton(app, 'Scorecard').getAttribute('aria-current')).toBe('page');
-    navButton(app, 'Habits').click();
+    for (const [name, tag] of [
+      ['Progress', 'progress-page'],
+      ['Sources', 'source-list'],
+      ['More', 'more-page'],
+    ]) {
+      tab(app, name).click();
+      await settle(app);
+      expect($(app, tag), name).not.toBeNull();
+      expect(tab(app, name).getAttribute('aria-current')).toBe('page');
+      expect(document.title).toBe(`${name} · Habits`);
+    }
+  });
+
+  it('opens the form from + and hides the tab bar there', async () => {
+    const app = await mount({ provider: createDemoProvider() });
+    tab(app, 'New habit').click();
     await settle(app);
-    expect($(app, 'habit-editor')).not.toBeNull();
-    expect(navButton(app, 'Habits').getAttribute('aria-current')).toBe('page');
+    expect($(app, 'habit-form')).not.toBeNull();
+    expect($(app, '.tab-bar')).toBeNull();
+  });
+
+  it('follows navigation from pages, and reloads after changes', async () => {
+    const p = createDemoProvider();
+    const listHabits = vi.spyOn(p, 'listHabits');
+    const app = await mount({ provider: p });
+    const page = $(app, 'today-page')!;
+    page.dispatchEvent(
+      new CustomEvent('navigate', { detail: { name: 'grid' }, bubbles: true, composed: true }),
+    );
+    await settle(app);
+    expect($(app, 'habit-scorecard')).not.toBeNull();
+    expect(tab(app, 'Today').getAttribute('aria-current')).toBe('page');
+    const before = listHabits.mock.calls.length;
+    $(app, 'habit-scorecard')!.dispatchEvent(
+      new Event('changed', { bubbles: true, composed: true }),
+    );
+    await settle(app);
+    expect(listHabits.mock.calls.length).toBe(before + 1);
+  });
+
+  it('shows a toast with Undo, which runs and reloads', async () => {
+    const app = await mount({ provider: createDemoProvider() });
+    const undo = vi.fn(async () => {});
+    $(app, 'today-page')!.dispatchEvent(
+      new CustomEvent('toast', {
+        detail: { message: 'Read: done', undo },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    await settle(app);
+    const toast = $(app, '.toast')!;
+    expect(toast.textContent).toContain('Read: done');
+    (toast.querySelector('button') as HTMLButtonElement).click();
+    await settle(app);
+    expect(undo).toHaveBeenCalled();
+    expect($(app, '.toast')).toBeNull();
   });
 
   it('asks a signed-out owner to sign in, with any link error', async () => {
@@ -70,21 +124,16 @@ describe('<habits-app>', () => {
     });
     const form = $(app, 'sign-in-form')!;
     expect(form).not.toBeNull();
-    expect($(app, 'nav')).toBeNull();
-    expect($(app, '.demo')).toBeNull();
+    expect($(app, '.tab-bar')).toBeNull();
     expect(form.shadowRoot!.querySelector('[role=alert]')?.textContent).toContain('expired');
   });
 
-  it('shows the scorecard once signed in, and signs out', async () => {
+  it('shows the app once signed in', async () => {
     const auth = fakeAuth(null);
     const app = await mount({ provider: createDemoProvider(), auth });
     auth.set('me@example.com');
     await settle(app);
-    expect($(app, 'habit-scorecard')).not.toBeNull();
-    anyButton(app, 'Sign out').click();
-    await settle(app);
-    expect(auth.signOut).toHaveBeenCalled();
-    expect($(app, 'sign-in-form')).not.toBeNull();
+    expect($(app, 'today-page')).not.toBeNull();
   });
 
   it('waits for the session before showing anything', async () => {
@@ -95,6 +144,62 @@ describe('<habits-app>', () => {
     };
     const app = await mount({ provider: createDemoProvider(), auth });
     expect($(app, '[role=status]')?.textContent).toBe('Loading…');
+  });
+
+  it('says when loading fails', async () => {
+    const p = createDemoProvider();
+    p.listHabits = async () => {
+      throw new Error('offline');
+    };
+    const app = await mount({ provider: p });
+    expect($(app, '[role=alert]')?.textContent).toBe("Couldn't load your habits.");
+  });
+
+  it('passes source alerts to Today', async () => {
+    const p = createDemoProvider();
+    const list = p.listSources;
+    p.listSources = async () => [
+      ...(await list()),
+      {
+        id: 'st',
+        kind: 'strava',
+        label: 'Strava',
+        config: { problem: 'reconnect' },
+        createdAt: 'T',
+      },
+    ];
+    const app = await mount({ provider: p });
+    const today = $(app, 'today-page') as HTMLElement & { alerts: { message: string }[] };
+    expect(today.alerts.map((a) => a.message)).toEqual(['Strava needs reconnecting.']);
+  });
+});
+
+describe('returning from an OAuth provider', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    history.replaceState(null, '', '/');
+  });
+
+  it('opens Sources with the outcome, once, and tidies the address bar', async () => {
+    history.replaceState(null, '', '/?keep=1&oauth=strava:denied#x');
+    const app = await mount({ provider: createDemoProvider() });
+    expect(location.search).toBe('?keep=1');
+    expect(location.hash).toBe('#x');
+    const list = $(app, 'source-list') as HTMLElement & { updateComplete: Promise<void> };
+    await list.updateComplete;
+    await settle(app);
+    expect(list.shadowRoot!.querySelector('.message')?.textContent).toBe(
+      "Strava wasn't connected.",
+    );
+
+    tab(app, 'Today').click();
+    await settle(app);
+    tab(app, 'Sources').click();
+    await settle(app);
+    const again = $(app, 'source-list') as HTMLElement & { updateComplete: Promise<void> };
+    await again.updateComplete;
+    await settle(app);
+    expect(again.shadowRoot!.querySelector('.message')?.textContent).toBe('');
   });
 });
 
@@ -131,95 +236,11 @@ describe('<sign-in-form>', () => {
     expect(root.querySelector('#email')?.getAttribute('aria-invalid')).toBe('true');
   });
 });
-
 describe('linkErrorFromUrl', () => {
   it('turns redirect errors into plain words', () => {
     expect(linkErrorFromUrl('')).toBe('');
     expect(linkErrorFromUrl('#access_token=x')).toBe('');
     expect(linkErrorFromUrl('#error=access_denied&error_code=otp_expired')).toContain('expired');
     expect(linkErrorFromUrl('#error=server_error')).toBe("That link didn't work. Send a new one.");
-  });
-});
-
-describe('returning from Strava', () => {
-  afterEach(() => {
-    document.body.replaceChildren();
-    history.replaceState(null, '', '/');
-  });
-
-  it('opens Sources with the outcome, once, and tidies the address bar', async () => {
-    history.replaceState(null, '', '/?keep=1&oauth=strava:denied#x');
-    const app = await mount({ provider: createDemoProvider() });
-    expect(location.search).toBe('?keep=1');
-    expect(location.hash).toBe('#x');
-    const list = $(app, 'source-list') as HTMLElement & { updateComplete: Promise<void> };
-    await settle(app);
-    await list.updateComplete;
-    expect(list.shadowRoot!.querySelector('.message')?.textContent).toBe(
-      "Strava wasn't connected.",
-    );
-
-    navButton(app, 'Scorecard').click();
-    await settle(app);
-    navButton(app, 'Sources').click();
-    await settle(app);
-    const again = $(app, 'source-list') as HTMLElement & { updateComplete: Promise<void> };
-    await again.updateComplete;
-    await settle(app);
-    expect(again.shadowRoot!.querySelector('.message')?.textContent).toBe('');
-  });
-});
-
-describe('source alerts', () => {
-  afterEach(() => document.body.replaceChildren());
-
-  it('shows quiet and broken sources above the scorecard, linking to Sources', async () => {
-    const p = createDemoProvider();
-    const list = p.listSources;
-    p.listSources = async () => [
-      ...(await list()),
-      { id: 'df', kind: 'deckfit', label: 'DeckFit', config: {}, createdAt: 'T' },
-      {
-        id: 'st',
-        kind: 'strava',
-        label: 'Strava',
-        config: { problem: 'reconnect' },
-        createdAt: 'T',
-      },
-    ];
-    p.listIngestTokens = async () => [
-      {
-        id: 't',
-        sourceId: 'df',
-        createdAt: '2026-01-01T00:00:00Z',
-        lastUsedAt: new Date(Date.now() - 9 * 86_400_000).toISOString(),
-      },
-    ];
-    const app = await mount({ provider: p });
-    const banner = $(app, '.alerts')!;
-    expect(banner.textContent).toContain('DeckFit last reported 9 days ago.');
-    expect(banner.textContent).toContain('Strava needs reconnecting.');
-    (banner.querySelector('button') as HTMLButtonElement).click();
-    await settle(app);
-    expect($(app, 'source-list')).not.toBeNull();
-    expect($(app, '.alerts')).toBeNull();
-  });
-
-  it('shows nothing when all is well', async () => {
-    const app = await mount({ provider: createDemoProvider() });
-    expect($(app, '.alerts')).toBeNull();
-  });
-});
-
-describe('page titles and headings', () => {
-  afterEach(() => document.body.replaceChildren());
-
-  it('names each page in the document title, and the scorecard page has a heading', async () => {
-    const app = await mount({ provider: createDemoProvider() });
-    expect(document.title).toBe('Habits');
-    expect($(app, 'h2.sr')?.textContent).toBe('Scorecard');
-    navButton(app, 'Data').click();
-    await settle(app);
-    expect(document.title).toBe('Data · Habits');
   });
 });

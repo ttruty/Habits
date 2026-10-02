@@ -48,8 +48,13 @@ export class DayDetail extends LitElement {
     this.message = '';
   }
 
+  /** The habit and day last shown: a reload hands over new objects for the same day. */
+  private shown = '';
+
   protected override willUpdate(changed: PropertyValues) {
-    if (changed.has('habit') || changed.has('date')) {
+    const key = `${this.habit?.id}|${this.date}`;
+    if ((changed.has('habit') || changed.has('date')) && key !== this.shown) {
+      this.shown = key;
       this.amount = '';
       this.message = '';
     }
@@ -192,13 +197,13 @@ export class DayDetail extends LitElement {
     ...base,
     css`
       h2 {
-        font-size: 1.125rem;
-        margin: 0 0 var(--hs-space);
+        font: var(--text-title);
+        margin: 0 0 var(--space-2);
       }
       h3 {
-        font-size: 0.875rem;
-        margin: calc(var(--hs-space) * 1.5) 0 calc(var(--hs-space) / 2);
-        color: var(--hs-text-muted);
+        font: var(--text-label);
+        margin: var(--space-3) 0 var(--space-1);
+        color: var(--color-ink-3);
       }
       ul {
         list-style: none;
@@ -209,33 +214,33 @@ export class DayDetail extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: var(--hs-space);
+        gap: var(--space-2);
         min-height: 2.5rem;
       }
       .muted {
-        color: var(--hs-text-muted);
+        color: var(--color-ink-3);
         margin: 0;
       }
       form {
-        margin-top: calc(var(--hs-space) * 2);
+        margin-top: var(--space-4);
       }
       label {
         display: block;
-        font-weight: 500;
-        margin-bottom: calc(var(--hs-space) / 2);
+        font: var(--text-label);
+        margin-bottom: var(--space-1);
       }
       .row {
         display: flex;
         align-items: center;
-        gap: var(--hs-space);
+        gap: var(--space-2);
       }
       input {
         width: 7rem;
       }
       .message {
         min-height: 1.4em;
-        color: var(--hs-text-muted);
-        margin: var(--hs-space) 0 0;
+        color: var(--color-ink-3);
+        margin: var(--space-2) 0 0;
       }
     `,
   ];

@@ -276,7 +276,7 @@ export class SourceList extends LitElement {
     );
     return html`
       <div class="head">
-        <h2>Sources</h2>
+        <h1 class="display">Sources</h1>
         <button
           id="connect"
           type="button"
@@ -372,7 +372,7 @@ export class SourceList extends LitElement {
   }
 
   private renderToken(source: Source, token: string) {
-    return html`<h2 id="issued-heading" tabindex="-1">Connect ${source.label}</h2>
+    return html`<h1 id="issued-heading" class="title" tabindex="-1">Connect ${source.label}</h1>
       <p>
         In ${source.label}, open Settings, turn on reporting to Habits, and paste these two values.
         <strong>The token is shown only this once.</strong>
@@ -396,7 +396,9 @@ export class SourceList extends LitElement {
   }
 
   private renderOAuthDone(source: Source) {
-    return html`<h2 id="issued-heading" tabindex="-1">${source.label} is connected</h2>
+    return html`<h1 id="issued-heading" class="title" tabindex="-1">
+        ${source.label} is connected
+      </h1>
       <p>
         Your last 60 days are on their way. New activity arrives as soon as ${source.label} has it.
       </p>`;
@@ -438,28 +440,28 @@ export class SourceList extends LitElement {
     ...base,
     css`
       h2 {
-        font-size: 1.125rem;
+        font: var(--text-title);
         margin: 0;
       }
       section h2 {
-        margin-bottom: var(--hs-space);
+        margin-bottom: var(--space-2);
       }
       .head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: var(--hs-space);
+        margin-bottom: var(--space-2);
       }
       .muted,
       .detail {
-        color: var(--hs-text-muted);
+        color: var(--color-ink-3);
       }
       .picker {
         list-style: none;
         display: flex;
         flex-wrap: wrap;
-        gap: var(--hs-space);
-        margin: 0 0 var(--hs-space);
+        gap: var(--space-2);
+        margin: 0 0 var(--space-2);
         padding: 0;
       }
       .list {
@@ -470,9 +472,9 @@ export class SourceList extends LitElement {
       .list li {
         display: flex;
         align-items: center;
-        gap: var(--hs-space);
-        padding: var(--hs-space) 0;
-        border-top: 1px solid var(--hs-border);
+        gap: var(--space-2);
+        padding: var(--space-2) 0;
+        border-top: 1px solid var(--color-border);
       }
       .what {
         flex: 1;
@@ -481,50 +483,51 @@ export class SourceList extends LitElement {
         flex-direction: column;
       }
       .name {
-        font-weight: 500;
+        font: var(--text-body);
       }
       .detail {
-        font-size: 0.8125rem;
+        font: var(--text-caption);
       }
       .detail.warn {
-        color: var(--hs-over);
-        font-weight: 500;
+        color: var(--color-danger);
+        font: var(--text-caption);
+        font-weight: 700;
       }
       .actions {
         display: flex;
         flex-wrap: wrap;
-        gap: calc(var(--hs-space) / 2);
+        gap: var(--space-1);
       }
       .field {
         display: flex;
         flex-direction: column;
-        gap: calc(var(--hs-space) / 2);
-        margin: 0 0 calc(var(--hs-space) * 2);
+        gap: var(--space-1);
+        margin: 0 0 var(--space-4);
         padding: 0;
         border: 0;
         max-width: 36rem;
       }
       label,
       legend {
-        font-weight: 500;
+        font: var(--text-label);
         padding: 0;
       }
       .row {
         display: flex;
-        gap: var(--hs-space);
+        gap: var(--space-2);
       }
       .row input {
         flex: 1;
         min-width: 0;
-        font-family: ui-monospace, monospace;
-        font-size: 0.875rem;
+        font: var(--text-copy);
+        font-family: var(--font-mono);
       }
       .check {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        font-weight: normal;
-        min-height: 2.5rem;
+        gap: var(--space-2);
+        font: var(--text-copy);
+        min-height: var(--touch-min);
       }
       .check input {
         min-height: 0;
@@ -532,7 +535,7 @@ export class SourceList extends LitElement {
       }
       .message {
         min-height: 1.4em;
-        color: var(--hs-text-muted);
+        color: var(--color-ink-3);
       }
     `,
   ];

@@ -3,6 +3,8 @@ import { formatValue } from '../format';
 import type { DateKey } from '../model';
 import type { ScoreRow } from '../scoring/scorecard';
 import { isMetric } from '../scoring/score';
+import { habitVars } from '../ui/vars';
+import { habitIcon } from '../ui/icons';
 import { dayCell } from './day-cell';
 
 export type Summary = 'week' | 'days';
@@ -23,9 +25,9 @@ export function scoreRow(
   const { habit, cells, unit } = row;
   const metric = isMetric(habit);
   const max = Math.max(0, ...cells.map((c) => c.value));
-  return html`<tr style="--hs-habit: var(--hs-color-${habit.color}, var(--hs-done))">
+  return html`<tr style=${habitVars(habit.color)}>
     <th scope="row" class="name">
-      <span class="icon" aria-hidden="true">${habit.icon}</span>${habit.name}
+      <span class="icon" aria-hidden="true">${habitIcon(habit.icon, 18)}</span>${habit.name}
     </th>
     ${cells.map((cell) =>
       dayCell(habit, cell, {

@@ -260,56 +260,57 @@ export class DataPage extends LitElement {
     ...base,
     css`
       h2 {
-        font-size: 1.125rem;
-        margin: 0 0 var(--hs-space);
+        font: var(--text-title);
+        margin: 0 0 var(--space-2);
       }
       h3 {
-        font-size: 1rem;
-        margin: calc(var(--hs-space) * 2) 0 calc(var(--hs-space) / 2);
+        font: var(--text-label);
+        margin: var(--space-4) 0 var(--space-1);
       }
       section {
         max-width: 36rem;
       }
       .muted {
-        color: var(--hs-text-muted);
-        margin: 0 0 var(--hs-space);
+        color: var(--color-ink-3);
+        margin: 0 0 var(--space-2);
       }
       code {
-        font-family: ui-monospace, monospace;
-        font-size: 0.875em;
+        font-family: var(--font-mono);
+        font: var(--text-caption);
+        font-family: var(--font-mono);
       }
       .row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--hs-space);
+        gap: var(--space-2);
       }
       .field {
         display: flex;
         flex-direction: column;
-        gap: calc(var(--hs-space) / 2);
-        margin-bottom: calc(var(--hs-space) * 1.5);
+        gap: var(--space-1);
+        margin-bottom: var(--space-3);
       }
       label {
-        font-weight: 500;
+        font: var(--text-label);
       }
       input[type='file'] {
         padding: 0.5rem;
         min-height: auto;
       }
       .preview {
-        margin-bottom: var(--hs-space);
+        margin-bottom: var(--space-2);
       }
       .preview p {
-        margin: 0 0 calc(var(--hs-space) / 2);
+        margin: 0 0 var(--space-1);
       }
       .preview ul {
         margin: 0;
         padding-left: 1.25rem;
-        color: var(--hs-over);
+        color: var(--color-danger);
       }
       .message {
         min-height: 1.4em;
-        color: var(--hs-text-muted);
+        color: var(--color-ink-3);
       }
     `,
   ];

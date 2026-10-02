@@ -53,8 +53,8 @@ const URL = 'https://ref.supabase.co/';
 const habit: Habit = {
   id: 'h1',
   name: 'Read',
-  icon: '📖',
-  color: 'teal',
+  icon: 'book',
+  color: 'green',
   match: { sourceIds: ['s1'], types: ['check-in'], where: { habit_id: 'h1' } },
   rule: { aggregate: 'count', atLeast: 1 },
   target: { perWeek: 7 },

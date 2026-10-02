@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DateRange, Habit, HabitEvent, Source } from '../model';
 import { connectorFor } from '../connectors/registry';
+import { normalizeHabit } from './normalize';
 import type { DataProvider, IngestToken, NewEvent } from './provider';
 import { newIngestToken, sha256Hex } from './tokens';
 
@@ -58,7 +59,7 @@ export function toHabit(r: HabitRow): Habit {
     id: r.id,
     name: r.name,
     icon: r.icon,
-    color: r.color,
+    color: r.color as Habit['color'], // normalizeHabit maps legacy names
     match: r.match,
     rule: r.rule,
     target: r.target,
@@ -194,7 +195,7 @@ export function createSupabaseProvider(db: SupabaseClient, supabaseUrl: string):
           .from('habits')
           .select('id,name,icon,color,match,rule,target,start_date,archived_at,sort'),
       );
-      return (rows as HabitRow[]).map(toHabit);
+      return (rows as HabitRow[]).map(toHabit).map(normalizeHabit);
     },
 
     async listEvents({ from, to }: DateRange) {

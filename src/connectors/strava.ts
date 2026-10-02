@@ -20,7 +20,7 @@ export const strava: Connector = {
   presets: [
     {
       name: 'Run',
-      icon: '🏃',
+      icon: 'run',
       color: 'orange',
       match: { types: ['activity.created'], where: { sport_type: RUNS } },
       rule: { aggregate: 'count', atLeast: 1 },
@@ -28,7 +28,7 @@ export const strava: Connector = {
     },
     {
       name: 'Ride',
-      icon: '🚴',
+      icon: 'bike',
       color: 'blue',
       match: { types: ['activity.created'], where: { sport_type: RIDES } },
       rule: { aggregate: 'count', atLeast: 1 },
@@ -36,8 +36,8 @@ export const strava: Connector = {
     },
     {
       name: 'Any activity',
-      icon: '🔥',
-      color: 'red',
+      icon: 'flame',
+      color: 'coral',
       match: { types: ['activity.created'] },
       rule: { aggregate: 'count', atLeast: 1 },
       target: { perWeek: 5 },

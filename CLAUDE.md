@@ -72,6 +72,7 @@ rule turns that into a filled cell or an empty one. Changing a goal from 20 to
 | ------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | UI      | **Lit 3** web components + TypeScript, built with **Vite**        | The widget _is_ a custom element, so the app and the embed are the same code. ~6 KB runtime. No framework is pushed onto host pages. |
 | Styling | Plain CSS with custom properties, inside Shadow DOM               | Host pages can't break it, and it can't break host pages. Themes are token swaps.                                                    |
+| Design  | `design/` (tokens, spec): Plus Jakarta Sans, Lucide line icons    | See "UI & theming" below. **Read `design/DESIGN_SYSTEM.md` before any UI work.**                                                     |
 | Backend | **Supabase**: Postgres, Row Level Security, Edge Functions (Deno) | DeckFit already uses Supabase. Strava needs a server to hold its client secret and receive webhooks.                                 |
 | Hosting | GitHub Pages (static), same workflow pattern as MindDrive         | Matches the other apps.                                                                                                              |
 | Tests   | Vitest (unit, including scoring), Playwright (embed smoke test)   | Same tools as the sibling apps.                                                                                                      |
@@ -82,6 +83,22 @@ lighter fit. Don't add a framework, a router library or a state library. The
 app has about three views.
 
 ---
+
+## UI & theming
+
+`design/` is the source of truth for the UI: `design/tokens.css` (every colour, font, radius,
+space and duration), `design/DESIGN_SYSTEM.md` (components, screens, a11y checklist; §10 says how
+this app applies it), and `design/CLAUDE.md` (the rules in short). In brief:
+
+- Components use tokens only: `var(--color-*)`, `var(--habit-*)`, `font: var(--text-*)`,
+  `var(--radius-*)`, `var(--space-*)`. No hex, no px font sizes, no ad-hoc radii. A missing token
+  goes into `design/tokens.css` and the spec first.
+- A habit stores a colour **key** (`blue | violet | orange | coral | green | amber`) and an icon
+  **key** (`src/ui/icons.ts`), never a hex or an emoji. `src/data/normalize.ts` maps old values.
+- Theme: `src/theme.ts` is the only code that touches `<html data-theme>`.
+- Touch targets ≥ 44 px; one accent per screen; no gradients, glows or card shadows.
+- Before finishing UI work: both themes, a 390 px viewport, the §8 checklist (Playwright's axe
+  sweep covers every screen), and the grep checks in `design/CLAUDE.md`.
 
 ## Non-negotiable rules
 

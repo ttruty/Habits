@@ -13,7 +13,7 @@ export const yarnbeard: Connector = {
   presets: [
     {
       name: 'Listen 20 min',
-      icon: '🎧',
+      icon: 'listen',
       color: 'blue',
       match: { types: ['listening.day'] },
       rule: { aggregate: 'sum', atLeast: 1200 },

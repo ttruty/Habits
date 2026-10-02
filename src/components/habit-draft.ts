@@ -1,6 +1,6 @@
 import { manualMatch } from '../connectors/manual';
 import { connectorFor } from '../connectors/registry';
-import type { DateKey, Habit, Source, Unit } from '../model';
+import type { DateKey, Habit, HabitColor, Source, Unit } from '../model';
 
 // The habit editor's form state, and the conversions between it and a Habit. Pure, so the
 // rules (units, manual habits, keeping `where`) are tested without a DOM.
@@ -8,7 +8,7 @@ import type { DateKey, Habit, Source, Unit } from '../model';
 /** Stands in for the Manual source before one exists; it's created on save. */
 export const NEW_MANUAL = '__new-manual__';
 
-export const COLORS = ['green', 'blue', 'purple', 'orange', 'red', 'teal'] as const;
+export { HABIT_COLORS as COLORS } from '../model';
 
 export type Goal = 'atLeast' | 'atMost' | 'track';
 
@@ -16,7 +16,7 @@ export interface Draft {
   id: string;
   name: string;
   icon: string;
-  color: string;
+  color: HabitColor;
   sourceId: string;
   type: string;
   aggregate: 'count' | 'sum';
@@ -72,7 +72,7 @@ export function newDraft(id: string, sources: readonly Source[], today: DateKey)
   return {
     id,
     name: '',
-    icon: '',
+    icon: 'check-square',
     color: 'green',
     sourceId: manual?.id ?? NEW_MANUAL,
     type: 'check-in',

@@ -1,81 +1,118 @@
 import { LitElement, css, html, nothing } from 'lit';
-import type { Auth } from '../data/auth';
 import { sourceAlerts, type SourceAlert } from '../data/alerts';
+import type { Auth } from '../data/auth';
 import type { DataProvider } from '../data/provider';
+import type { DateKey } from '../model';
+import type { AppData, Route, Toast } from './app-events';
+import { addDays, localDateKey } from '../scoring/dates';
 import { base } from '../styles/base';
-import './data-page';
-import './habit-editor';
+import { tabBar, ui, type Tab } from '../ui/components';
+import { icon } from '../ui/ui-icons';
+import './habit-form';
 import './habit-scorecard';
+import './manage-habits';
+import './more-page';
+import './progress-page';
 import './sign-in-form';
 import './source-list';
+import './today-page';
 
-type Page = 'scorecard' | 'habits' | 'sources' | 'data';
+/** History loaded for streaks and the 5-week heatmap. */
+const HISTORY_DAYS = 365;
 
-const PAGES: { page: Page; label: string }[] = [
-  { page: 'scorecard', label: 'Scorecard' },
-  { page: 'habits', label: 'Habits' },
-  { page: 'sources', label: 'Sources' },
-  { page: 'data', label: 'Data' },
+const TABS: Tab[] = [
+  { id: 'today', label: 'Today', icon: 'today' },
+  { id: 'progress', label: 'Progress', icon: 'chart' },
+  { id: 'form', label: 'New habit', icon: 'plus', fab: true },
+  { id: 'sources', label: 'Sources', icon: 'sources' },
+  { id: 'more', label: 'More', icon: 'more' },
 ];
 
+const TITLES: Record<Route['name'], string> = {
+  today: 'Today',
+  grid: 'Scorecard',
+  progress: 'Progress',
+  form: 'Habit',
+  manage: 'Manage habits',
+  sources: 'Sources',
+  more: 'More',
+};
+
 /**
- * The standalone app: sign-in, then the scorecard or the habit list. Not part of the embed.
- * With no `auth` it runs on demo data, with no sign-in.
+ * The standalone app: sign-in, then Today / Progress / Sources / More with a floating tab bar
+ * (design/DESIGN_SYSTEM.md §5 TabBar, §6 Screens). With no `auth` it runs on demo data.
  */
 export class HabitsApp extends LitElement {
   static override properties = {
     provider: { attribute: false },
     auth: { attribute: false },
     linkError: { attribute: false },
+    today: { attribute: false },
     email: { state: true },
-    page: { state: true },
+    route: { state: true },
+    data: { state: true },
+    status: { state: true },
     alerts: { state: true },
+    toast: { state: true },
+    wide: { state: true },
   };
 
   declare provider: DataProvider | undefined;
   declare auth: Auth | undefined;
   /** From a failed magic-link redirect. */
   declare linkError: string;
-  /** Signed-in email; undefined while checking, null when signed out. */
+  /** Override "today", for tests. */
+  declare today: DateKey | undefined;
   declare private email: string | null | undefined;
-  declare private page: Page;
-  /** Sources needing attention, shown above the scorecard. */
+  declare private route: Route;
+  declare private data: AppData | undefined;
+  declare private status: 'loading' | 'ready' | 'error';
   declare private alerts: SourceAlert[];
+  declare private toast: Toast | undefined;
+  /** ≥ 1024 px: Today shows the dashboard. */
+  declare private wide: boolean;
 
   private unsubscribe?: () => void;
   /** `?oauth=<kind>:<outcome>` after a provider's consent page; handed to Sources once. */
   private oauthOutcome: string | undefined;
+  private toastTimer: ReturnType<typeof setTimeout> | undefined;
+  private loads = 0;
+  private media = window.matchMedia?.('(min-width: 1024px)');
+  private onMedia = () => (this.wide = !!this.media?.matches);
+  private onVisible = () => {
+    if (document.visibilityState === 'visible') void this.load();
+  };
 
   constructor() {
     super();
-    this.page = 'scorecard';
-    this.alerts = [];
-    this.takeOAuthOutcome();
+    this.route = { name: 'today' };
     this.linkError = '';
+    this.alerts = [];
+    this.status = 'loading';
+    this.wide = !!this.media?.matches;
+    this.takeOAuthOutcome();
   }
 
-  protected override updated(changed: Map<string, unknown>) {
-    if (changed.has('page')) {
-      const label = PAGES.find((p) => p.page === this.page)?.label;
-      document.title = this.page === 'scorecard' ? 'Habits' : `${label} · Habits`;
-    }
-    if (['provider', 'email', 'page'].some((k) => changed.has(k)) && this.page === 'scorecard') {
-      void this.loadAlerts();
-    }
+  override connectedCallback() {
+    super.connectedCallback();
+    this.media?.addEventListener?.('change', this.onMedia);
+    document.addEventListener('visibilitychange', this.onVisible);
   }
 
-  private async loadAlerts() {
-    const signedIn = !this.auth || !!this.email;
-    if (!this.provider || !signedIn) return;
-    try {
-      const [sources, tokens] = await Promise.all([
-        this.provider.listSources(),
-        this.provider.listIngestTokens(),
-      ]);
-      this.alerts = sourceAlerts(sources, tokens, new Date());
-    } catch {
-      this.alerts = [];
-    }
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.unsubscribe?.();
+    this.media?.removeEventListener?.('change', this.onMedia);
+    document.removeEventListener('visibilitychange', this.onVisible);
+    clearTimeout(this.toastTimer);
+  }
+
+  private get signedIn() {
+    return !this.auth || !!this.email;
+  }
+
+  private get todayKey() {
+    return this.today ?? localDateKey(new Date());
   }
 
   protected override willUpdate(changed: Map<string, unknown>) {
@@ -86,11 +123,54 @@ export class HabitsApp extends LitElement {
     }
   }
 
-  /** The OAuth outcome, once: going back to Sources later shouldn't repeat it. */
-  private handOver() {
-    const outcome = this.oauthOutcome;
-    this.oauthOutcome = undefined;
-    return outcome;
+  protected override updated(changed: Map<string, unknown>) {
+    if (['provider', 'email', 'auth'].some((k) => changed.has(k))) void this.load();
+    if (changed.has('route')) {
+      const title = TITLES[this.route.name];
+      document.title = this.route.name === 'today' ? 'Habits' : `${title} · Habits`;
+    }
+  }
+
+  /** (Re)load everything the pages show. */
+  async load() {
+    if (!this.provider || !this.signedIn) return;
+    const id = ++this.loads;
+    const today = this.todayKey;
+    try {
+      const [habits, sources, events, tokens] = await Promise.all([
+        this.provider.listHabits(),
+        this.provider.listSources(),
+        this.provider.listEvents({ from: addDays(today, -HISTORY_DAYS), to: today }),
+        this.provider.listIngestTokens(),
+      ]);
+      if (id !== this.loads) return;
+      this.data = { habits, sources, events, tokens, today };
+      this.alerts = sourceAlerts(sources, tokens, new Date());
+      this.status = 'ready';
+    } catch {
+      if (id === this.loads) this.status = 'error';
+    }
+  }
+
+  private go(route: Route) {
+    this.route = route;
+    window.scrollTo?.({ top: 0 });
+  }
+
+  private showToast(toast: Toast) {
+    clearTimeout(this.toastTimer);
+    this.toast = toast;
+    this.toastTimer = setTimeout(() => (this.toast = undefined), 4000);
+  }
+
+  private async undo() {
+    const undo = this.toast?.undo;
+    this.toast = undefined;
+    clearTimeout(this.toastTimer);
+    if (undo) {
+      await undo();
+      await this.load();
+    }
   }
 
   /** Open Sources after an OAuth round trip, and tidy the outcome out of the address bar. */
@@ -98,7 +178,7 @@ export class HabitsApp extends LitElement {
     const params = new URLSearchParams(location.search);
     const outcome = params.get('oauth');
     if (!outcome) return;
-    this.page = 'sources';
+    this.route = { name: 'sources' };
     this.oauthOutcome = outcome;
     params.delete('oauth');
     const query = params.toString();
@@ -109,171 +189,126 @@ export class HabitsApp extends LitElement {
     );
   }
 
-  override disconnectedCallback() {
-    super.disconnectedCallback();
-    this.unsubscribe?.();
+  /** The OAuth outcome, once: going back to Sources later shouldn't repeat it. */
+  private handOver() {
+    const outcome = this.oauthOutcome;
+    this.oauthOutcome = undefined;
+    return outcome;
   }
 
   protected override render() {
-    const signedIn = !this.auth || !!this.email;
+    if (!this.provider || (this.auth && this.email === undefined)) {
+      return html`<p class="page" role="status">Loading…</p>`;
+    }
+    if (!this.signedIn) {
+      return html`<sign-in-form .auth=${this.auth!} .error=${this.linkError}></sign-in-form>`;
+    }
+    const tab =
+      this.route.name === 'grid'
+        ? 'today'
+        : this.route.name === 'manage'
+          ? 'more'
+          : this.route.name;
     return html`
-      <header>
-        <div class="title-row">
-          <h1>Habits</h1>
-          ${
-            signedIn && this.auth
-              ? html`<div class="account">
-                  <button type="button" @click=${() => this.auth!.signOut()}>Sign out</button>
-                </div>`
-              : nothing
-          }
-        </div>
-        ${
-          signedIn && this.provider
-            ? html`<nav aria-label="Pages" class="pages">
-                ${PAGES.map(({ page, label }) => this.navButton(page, label))}
-              </nav>`
-            : nothing
-        }
-      </header>
-      ${!this.auth ? html`<p class="demo">Demo data. Changes stay in this browser.</p>` : nothing}
-      ${signedIn && this.page === 'scorecard' && this.alerts.length ? this.renderAlerts() : nothing}
-      ${this.renderPage(signedIn)}
+      <div
+        @navigate=${(e: CustomEvent<Route>) => this.go(e.detail)}
+        @changed=${() => void this.load()}
+        @toast=${(e: CustomEvent<Toast>) => this.showToast(e.detail)}
+      >
+        ${this.renderRoute()}
+      </div>
+      ${
+        this.route.name === 'form'
+          ? nothing
+          : tabBar(TABS, tab, (id) =>
+              this.go(id === 'form' ? { name: 'form' } : ({ name: id } as Route)),
+            )
+      }
+      ${
+        this.toast
+          ? html`<div class="toast" role="status">
+              <span>${this.toast.message}</span>
+              ${
+                this.toast.undo
+                  ? html`<button type="button" @click=${() => this.undo()}>Undo</button>`
+                  : nothing
+              }
+            </div>`
+          : nothing
+      }
     `;
   }
 
-  private renderAlerts() {
-    return html`<div class="alerts" role="status">
-      <ul>
-        ${this.alerts.map((a) => html`<li><span aria-hidden="true">⚠</span> ${a.message}</li>`)}
-      </ul>
-      <button type="button" @click=${() => (this.page = 'sources')}>Open Sources</button>
-    </div>`;
-  }
-
-  private navButton(page: Page, label: string) {
-    return html`<button
-      type="button"
-      aria-current=${this.page === page ? 'page' : nothing}
-      @click=${() => (this.page = page)}
-    >
-      ${label}
-    </button>`;
-  }
-
-  private renderPage(signedIn: boolean) {
-    if (!this.provider || (this.auth && this.email === undefined)) {
-      return html`<p role="status">Loading…</p>`;
+  private renderRoute() {
+    const r = this.route;
+    if (r.name === 'sources') {
+      return html`<section class="page">
+        <source-list .provider=${this.provider} .oauthOutcome=${this.handOver()}></source-list>
+      </section>`;
     }
-    if (!signedIn) {
-      return html`<sign-in-form .auth=${this.auth!} .error=${this.linkError}></sign-in-form>`;
+    if (r.name === 'grid') {
+      return html`<section class="page">
+        <div class="page-head">
+          <button
+            type="button"
+            class="icon"
+            aria-label="Back to Today"
+            @click=${() => this.go({ name: 'today' })}
+          >
+            ${icon('chevron-left')}
+          </button>
+        </div>
+        <h1 class="title">Scorecard</h1>
+        <habit-scorecard .provider=${this.provider}></habit-scorecard>
+      </section>`;
     }
-    switch (this.page) {
-      case 'habits':
-        return html`<habit-editor .provider=${this.provider}></habit-editor>`;
-      case 'data':
-        return html`<data-page .provider=${this.provider}></data-page>`;
-      case 'sources':
-        return html`<source-list
-          .provider=${this.provider}
-          .oauthOutcome=${this.handOver()}
-        ></source-list>`;
+    if (this.status === 'error') {
+      return html`<section class="page"><p role="alert">Couldn't load your habits.</p></section>`;
+    }
+    if (!this.data) return html`<p class="page" role="status">Loading…</p>`;
+    const common = { provider: this.provider!, data: this.data };
+    switch (r.name) {
+      case 'progress':
+        return html`<progress-page
+          .provider=${common.provider}
+          .data=${common.data}
+          .habitId=${r.habitId}
+        ></progress-page>`;
+      case 'form':
+        return html`<habit-form
+          .provider=${common.provider}
+          .data=${common.data}
+          .habitId=${r.habitId}
+        ></habit-form>`;
+      case 'manage':
+        return html`<manage-habits
+          .provider=${common.provider}
+          .data=${common.data}
+        ></manage-habits>`;
+      case 'more':
+        return html`<more-page
+          .provider=${common.provider}
+          .data=${common.data}
+          .auth=${this.auth}
+        ></more-page>`;
       default:
-        return html`<h2 class="sr">Scorecard</h2>
-          <habit-scorecard .provider=${this.provider}></habit-scorecard>`;
+        return html`<today-page
+          .provider=${common.provider}
+          .data=${common.data}
+          .alerts=${this.alerts}
+          .demo=${!this.auth}
+          .wide=${this.wide}
+        ></today-page>`;
     }
   }
 
   static override styles = [
     ...base,
+    ui,
     css`
       :host {
-        max-width: 60rem;
-        margin: 0 auto;
-        padding: calc(var(--hs-space) * 2);
         min-height: 100vh;
-        background: var(--hs-bg);
-      }
-      header {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--hs-space);
-        margin-bottom: calc(var(--hs-space) * 2);
-      }
-      h1 {
-        font-size: 1.25rem;
-        margin: 0;
-      }
-      /* Pages as one segmented control; full width on a phone. */
-      .pages {
-        display: flex;
-      }
-      .pages button {
-        border-radius: 0;
-        margin-left: -1px;
-        padding: 0 0.875rem;
-      }
-      .pages button:first-child {
-        border-radius: var(--hs-radius) 0 0 var(--hs-radius);
-        margin-left: 0;
-      }
-      .pages button:last-child {
-        border-radius: 0 var(--hs-radius) var(--hs-radius) 0;
-      }
-      .pages [aria-current='page'] {
-        background: var(--hs-text);
-        color: var(--hs-bg);
-        border-color: var(--hs-text);
-        position: relative;
-      }
-      .account {
-        display: flex;
-        gap: var(--hs-space);
-      }
-      @media (max-width: 34rem) {
-        header {
-          flex-direction: column;
-          align-items: stretch;
-        }
-        .pages button {
-          flex: 1;
-          padding: 0 0.5rem;
-        }
-        .title-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-      }
-      .alerts {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--hs-space);
-        padding: var(--hs-space) calc(var(--hs-space) * 1.5);
-        margin-bottom: calc(var(--hs-space) * 1.5);
-        border: 1px solid var(--hs-over);
-        border-radius: var(--hs-radius);
-        background: var(--hs-surface);
-      }
-      .alerts ul {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-      .alerts li span {
-        color: var(--hs-over);
-      }
-      .demo {
-        margin: 0 0 var(--hs-space);
-        color: var(--hs-text-muted);
-        font-size: 0.875rem;
-      }
-      habit-scorecard {
-        padding: 0;
+        background: var(--color-bg);
       }
     `,
   ];

@@ -14,16 +14,16 @@ export const withings: Connector = {
   presets: [
     {
       name: 'Steps',
-      icon: '👟',
-      color: 'teal',
+      icon: 'walk',
+      color: 'green',
       match: { types: ['steps.day'] },
       rule: { aggregate: 'sum', atLeast: 8000 },
       target: { perWeek: 7 },
     },
     {
       name: 'Workout (Withings)',
-      icon: '💪',
-      color: 'purple',
+      icon: 'dumbbell',
+      color: 'violet',
       match: { types: ['workout.completed'] },
       rule: { aggregate: 'count', atLeast: 1 },
       target: { perWeek: 3 },

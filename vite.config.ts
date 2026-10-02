@@ -21,6 +21,8 @@ export default defineConfig(({ command, isPreview }) => ({
     // A zone with DST, so date code is tested against real clock changes.
     env: { TZ: 'America/Chicago' },
     setupFiles: ['src/test-setup.ts'],
+    // Process CSS so `?inline` imports (design/tokens.css) hold the real text in tests.
+    css: { include: [/\.css/] },
     coverage: {
       include: [
         'src/scoring/**',

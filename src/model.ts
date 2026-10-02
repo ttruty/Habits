@@ -64,13 +64,18 @@ export interface HabitRule {
   // Neither = a tracked metric: the cell shows the amount, with no done/missed state.
 }
 
+/** The habit palette (design/tokens.css): render with var(--habit-<key>) / var(--habit-<key>-on). */
+export const HABIT_COLORS = ['blue', 'violet', 'orange', 'coral', 'green', 'amber'] as const;
+export type HabitColor = (typeof HABIT_COLORS)[number];
+
 /** What I'm trying to do. Turns events into daily done / not-done. */
 export interface Habit {
   id: string;
   name: string;
+  /** An icon key from src/ui/icons.ts (HABIT_ICONS), never an emoji. */
   icon: string;
-  /** Colour token name (see styles/tokens.css), not a hex value. */
-  color: string;
+  /** A palette key, never a hex value. */
+  color: HabitColor;
   match: HabitMatch;
   /** Per local day. */
   rule: HabitRule;

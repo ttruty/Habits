@@ -1,8 +1,14 @@
+import '../design/tokens.css';
+import './styles/fonts.css';
 import './components/habits-app';
+import { applyTheme, watchSystemTheme } from './theme';
 import { createDemoProvider } from './data/demo-provider';
 
 // Live when built with Supabase settings (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY), unless the
 // URL has ?demo. Otherwise demo data in this browser. Supabase loads only in live mode.
+applyTheme();
+watchSystemTheme();
+
 const app = document.querySelector('habits-app')!;
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;

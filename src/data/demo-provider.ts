@@ -1,6 +1,7 @@
 import type { DateKey, DateRange, Habit, HabitEvent, Source } from '../model';
 import { addDays, eachDay, inRange, localDateKey } from '../scoring/dates';
 import { ReadOnlyError, type DataProvider, type IngestToken, type NewEvent } from './provider';
+import { normalizeHabit } from './normalize';
 import { newIngestToken } from './tokens';
 
 // Fake data for the UI, the embed and tests: eight weeks up to today for five example habits.
@@ -35,7 +36,7 @@ function habits(today: DateKey): Habit[] {
       id: 'demo-workout',
       startDate: started,
       name: 'Workout',
-      icon: '🏋️',
+      icon: 'dumbbell',
       color: 'green',
       match: { sourceIds: ['demo-deckfit'], types: ['workout.completed'] },
       rule: { aggregate: 'count', atLeast: 1 },
@@ -46,8 +47,8 @@ function habits(today: DateKey): Habit[] {
       id: 'demo-meditate',
       startDate: started,
       name: 'Meditate',
-      icon: '🧘',
-      color: 'purple',
+      icon: 'mind',
+      color: 'violet',
       match: { sourceIds: ['demo-minddrive'], types: ['meditation.completed'] },
       rule: { aggregate: 'count', atLeast: 1 },
       target: { perWeek: 7 },
@@ -57,7 +58,7 @@ function habits(today: DateKey): Habit[] {
       id: 'demo-listen',
       startDate: started,
       name: 'Listen 20m',
-      icon: '🎧',
+      icon: 'listen',
       color: 'blue',
       match: { sourceIds: ['demo-yarnbeard'], types: ['listening.day'] },
       rule: { aggregate: 'sum', atLeast: 1200 },
@@ -68,7 +69,7 @@ function habits(today: DateKey): Habit[] {
       id: 'demo-run',
       startDate: started,
       name: 'Run',
-      icon: '🏃',
+      icon: 'run',
       color: 'orange',
       match: {
         sourceIds: ['demo-strava'],
@@ -82,8 +83,8 @@ function habits(today: DateKey): Habit[] {
     {
       id: 'demo-read',
       name: 'Read',
-      icon: '📖',
-      color: 'teal',
+      icon: 'book',
+      color: 'amber',
       match: { sourceIds: ['demo-moon'], types: ['reading.session'] },
       rule: { aggregate: 'sum', atLeast: 600 },
       target: { perWeek: 7 },
@@ -257,7 +258,7 @@ export function createDemoProvider({
     // Demo tokens are never sent anywhere; this URL only fills the connect screen.
     ingestUrl: 'https://demo.invalid/functions/v1/ingest',
     listSources: async () => [...sources, ...state().sources],
-    listHabits: async () => structuredClone(state().habits),
+    listHabits: async () => structuredClone(state().habits).map(normalizeHabit),
     async listEvents(range: DateRange) {
       const t = today();
       const from = range.from > addDays(t, -(DAYS - 1)) ? range.from : addDays(t, -(DAYS - 1));

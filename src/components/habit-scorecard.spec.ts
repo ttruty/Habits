@@ -368,6 +368,14 @@ describe('minutes in the square', () => {
   });
 });
 
+/** Wait for the (lazy-loaded) correction dialog to open. */
+async function dialogOpen(card: HabitScorecard) {
+  for (let i = 0; i < 50 && !card.shadowRoot!.querySelector('day-detail'); i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  await settle(card);
+}
+
 describe('correcting a day', () => {
   afterEach(() => document.body.replaceChildren());
 
@@ -399,6 +407,7 @@ describe('correcting a day', () => {
     expect(monday.getAttribute('aria-haspopup')).toBe('dialog');
     expect(monday.getAttribute('aria-label')).toMatch(/^Run, Monday.*: missed$/);
     monday.click();
+    await dialogOpen(card);
     await settle(card);
     await detail(card).updateComplete;
     expect(($(card, '#day-dialog') as HTMLDialogElement).open).toBe(true);
@@ -428,6 +437,7 @@ describe('correcting a day', () => {
     const p = provider([listen], [reported], sources);
     const card = await mount(p);
     opens(card)[1].click();
+    await dialogOpen(card);
     await settle(card);
     await detail(card).updateComplete;
     expect(text(inDetail(card, 'li'))).toBe('Yarnbeard · 10m');
@@ -453,6 +463,7 @@ describe('correcting a day', () => {
   it('refuses an empty or zero amount', async () => {
     const card = await mount(provider([listen], [], sources));
     opens(card)[0].click();
+    await dialogOpen(card);
     await settle(card);
     await detail(card).updateComplete;
     (inDetail(card, 'form') as HTMLFormElement).requestSubmit();
@@ -464,6 +475,7 @@ describe('correcting a day', () => {
     const card = await mount(provider([run], [], sources));
     const monday = opens(card)[0];
     monday.click();
+    await dialogOpen(card);
     await settle(card);
     ($(card, '#day-dialog') as HTMLDialogElement).close();
     await settle(card);

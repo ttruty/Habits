@@ -6,7 +6,7 @@ export function habit(overrides: Partial<Habit> = {}): Habit {
   return {
     id: 'h1',
     name: 'Workout',
-    icon: '🏋️',
+    icon: 'dumbbell',
     color: 'green',
     match: { types: ['workout.completed'] },
     rule: { aggregate: 'count', atLeast: 1 },

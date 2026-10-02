@@ -30,7 +30,7 @@ const today = '2026-10-01';
 const listen: Habit = {
   id: 'h1',
   name: 'Listen 20m',
-  icon: '🎧',
+  icon: 'listen',
   color: 'blue',
   match: { sourceIds: ['y'], types: ['listening.day'] },
   rule: { aggregate: 'sum', atLeast: 1200 },
@@ -88,11 +88,11 @@ describe('draftFromHabit / habitFromDraft', () => {
   });
 
   it('makes hand-ticked habits count their own check-ins', () => {
-    const draft = { ...newDraft('h9', sources, today), name: ' Read ', icon: '📖' };
+    const draft = { ...newDraft('h9', sources, today), name: ' Read ', icon: 'book' };
     expect(habitFromDraft(draft, sources, undefined, 5)).toEqual({
       id: 'h9',
       name: 'Read',
-      icon: '📖',
+      icon: 'book',
       color: 'green',
       match: { sourceIds: ['m'], types: ['check-in'], where: { habit_id: 'h9' } },
       rule: { aggregate: 'count', atLeast: 1 },

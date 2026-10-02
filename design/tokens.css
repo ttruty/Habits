@@ -1,0 +1,169 @@
+/* =========================================================================
+   Habit app — theme tokens
+   Single source of truth for color, type, radius, spacing, motion.
+   Components must ONLY reference these variables — never raw hex values.
+   Theme switching: set data-theme="light" | "dark" on <html>.
+   With no attribute, the OS preference decides.
+   ========================================================================= */
+
+/* Plus Jakarta Sans is self-hosted (public/fonts, declared in src/styles/fonts.css): it works offline
+   in the installed app and sends no request to a font CDN. */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Neutrals */
+  --color-bg:          #F5F6F8;  /* app background */
+  --color-surface:     #FFFFFF;  /* cards, inputs, sheets */
+  --color-surface-2:   #EEF0F4;  /* tracks, empty cells, pressed states */
+  --color-border:      #E3E6EC;  /* hairlines on surfaces */
+  --color-border-strong:#D5D9E1; /* inputs, secondary buttons */
+  --color-ink:         #14171F;  /* primary text */
+  --color-ink-2:       #4A5163;  /* secondary text */
+  --color-ink-3:       #636B7D;  /* captions, meta (≥4.5:1 on surface) */
+
+  /* Chrome */
+  --color-nav:         #14171F;  /* floating tab bar */
+  --color-nav-ink:     #C9CED9;
+  --color-nav-active:  #FFFFFF;
+  --color-nav-active-ink: #14171F;
+
+  /* Actions & status */
+  --color-accent:      #CC3340;  /* the + button, selected day, one thing per screen */
+  --color-on-accent:   #FFFFFF;
+  --color-primary:     #14171F;  /* primary buttons are ink-filled */
+  --color-on-primary:  #FFFFFF;
+  --color-success:     #1F8052;
+  --color-success-soft:#E6F2EC;
+  --color-danger:      #CC3340;
+
+  /* Habit palette — each habit picks ONE key. fill + on-fill pass 4.5:1 */
+  --habit-blue:   #2F5FD6;  --habit-blue-on:   #FFFFFF;
+  --habit-violet: #6A48DB;  --habit-violet-on: #FFFFFF;
+  --habit-orange: #B85418;  --habit-orange-on: #FFFFFF;
+  --habit-coral:  #CC3340;  --habit-coral-on:  #FFFFFF;
+  --habit-green:  #1F8052;  --habit-green-on:  #FFFFFF;
+  --habit-amber:  #F2B92E;  --habit-amber-on:  #14171F;
+  --habit-icon-tile: rgba(255, 255, 255, 0.22); /* icon square inside a habit card */
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg:          #0E1424;
+  --color-surface:     #161E33;
+  --color-surface-2:   #1E2840;
+  --color-border:      #29344F;
+  --color-border-strong:#36425F;
+  --color-ink:         #EEF1F8;
+  --color-ink-2:       #B4BDD1;
+  --color-ink-3:       #8B96AE;
+
+  --color-nav:         #1E2840;
+  --color-nav-ink:     #B4BDD1;
+  --color-nav-active:  #EEF1F8;
+  --color-nav-active-ink: #0E1424;
+
+  --color-accent:      #FF6B74;
+  --color-on-accent:   #1A0A0C;
+  --color-primary:     #EEF1F8;
+  --color-on-primary:  #0E1424;
+  --color-success:     #4FD08E;
+  --color-success-soft:#173A2C;
+  --color-danger:      #FF7A82;
+
+  /* Dark habit fills are lighter; text on them is dark */
+  --habit-blue:   #7C9EFF;  --habit-blue-on:   #0E1424;
+  --habit-violet: #A58BFF;  --habit-violet-on: #0E1424;
+  --habit-orange: #FF9D5C;  --habit-orange-on: #0E1424;
+  --habit-coral:  #FF7A82;  --habit-coral-on:  #0E1424;
+  --habit-green:  #4FD08E;  --habit-green-on:  #0E1424;
+  --habit-amber:  #F7C948;  --habit-amber-on:  #0E1424;
+  --habit-icon-tile: rgba(14, 20, 36, 0.14);
+}
+
+/* Follow the OS when the user hasn't chosen (keep in sync with the dark block) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --color-bg:#0E1424; --color-surface:#161E33; --color-surface-2:#1E2840;
+    --color-border:#29344F; --color-border-strong:#36425F;
+    --color-ink:#EEF1F8; --color-ink-2:#B4BDD1; --color-ink-3:#8B96AE;
+    --color-nav:#1E2840; --color-nav-ink:#B4BDD1; --color-nav-active:#EEF1F8; --color-nav-active-ink:#0E1424;
+    --color-accent:#FF6B74; --color-on-accent:#1A0A0C; --color-primary:#EEF1F8; --color-on-primary:#0E1424;
+    --color-success:#4FD08E; --color-success-soft:#173A2C; --color-danger:#FF7A82;
+    --habit-blue:#7C9EFF; --habit-blue-on:#0E1424; --habit-violet:#A58BFF; --habit-violet-on:#0E1424;
+    --habit-orange:#FF9D5C; --habit-orange-on:#0E1424; --habit-coral:#FF7A82; --habit-coral-on:#0E1424;
+    --habit-green:#4FD08E; --habit-green-on:#0E1424; --habit-amber:#F7C948; --habit-amber-on:#0E1424;
+    --habit-icon-tile: rgba(14, 20, 36, 0.14);
+  }
+}
+
+/* Theme-independent tokens */
+:root {
+  /* Type */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --text-display: 800 28px/34px var(--font-sans);  /* screen greeting */
+  --text-title:   800 20px/26px var(--font-sans);  /* screen & sheet titles */
+  --text-body:    700 16px/22px var(--font-sans);  /* habit names, list rows */
+  --text-label:   700 14px/18px var(--font-sans);  /* section headers, field labels */
+  --text-caption: 500 13px/18px var(--font-sans);  /* frequency, streak meta */
+  --text-micro:   600 11px/14px var(--font-sans);  /* day-of-week labels */
+  --text-stat:    800 28px/32px var(--font-sans);  /* big numbers */
+  --text-stat-sm: 800 22px/26px var(--font-sans);  /* StatTile numbers on a phone */
+  --text-date:    800 17px/22px var(--font-sans);  /* WeekStrip date */
+  --text-copy:    500 16px/22px var(--font-sans);  /* running text: explanations, inputs */
+  --tracking-tight: -0.02em;                       /* display + stat only */
+
+  /* Radius */
+  --radius-sm: 10px;    /* chips, heatmap cells (use 4–8px for tiny cells) */
+  --radius-md: 16px;    /* buttons, inputs, day pills, small cards */
+  --radius-lg: 20px;    /* habit cards, panels */
+  --radius-xl: 24px;    /* hero cards, tab bar, sheets */
+  --radius-pill: 999px; /* check circles, FAB, progress bars */
+
+  /* Spacing (4px grid) */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --gutter: 20px;          /* phone side padding */
+
+  /* Sizes */
+  --touch-min: 44px;       /* every tappable thing */
+  --habit-card-min-h: 72px;
+  --tabbar-h: 68px;
+  --fab-size: 56px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 120ms;   /* press states */
+  --dur-base: 200ms;   /* check toggle, theme change */
+  --dur-slow: 320ms;   /* card moving from Up next → Done */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms; }
+}
+
+/* Base */
+html { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); }
+body { margin: 0; -webkit-font-smoothing: antialiased; }
+
+/* -------------------------------------------------------------------------
+   Optional: Ionic bridge — uncomment if the app uses Ionic components.
+   -------------------------------------------------------------------------
+:root {
+  --ion-background-color: var(--color-bg);
+  --ion-text-color: var(--color-ink);
+  --ion-font-family: var(--font-sans);
+  --ion-item-background: var(--color-surface);
+  --ion-border-color: var(--color-border);
+  --ion-color-primary: var(--color-accent);
+  --ion-color-primary-contrast: var(--color-on-accent);
+  --ion-color-success: var(--color-success);
+  --ion-color-danger: var(--color-danger);
+  --ion-color-medium: var(--color-ink-3);
+}
+------------------------------------------------------------------------- */

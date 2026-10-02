@@ -10,7 +10,7 @@ export const deckfit: Connector = {
   presets: [
     {
       name: 'Workout',
-      icon: '🏋️',
+      icon: 'dumbbell',
       color: 'green',
       match: { types: ['workout.completed'], where: { outcome: 'finished' } },
       rule: { aggregate: 'count', atLeast: 1 },

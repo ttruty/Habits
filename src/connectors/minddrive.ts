@@ -9,8 +9,8 @@ export const minddrive: Connector = {
   presets: [
     {
       name: 'Meditate',
-      icon: '🧘',
-      color: 'purple',
+      icon: 'mind',
+      color: 'violet',
       match: { types: ['meditation.completed'] },
       rule: { aggregate: 'count', atLeast: 1 },
       target: { perWeek: 7 },
