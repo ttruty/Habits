@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dedupe, matches, scoreHabit } from './score';
+import { MANUAL_ENTRY, countsFor, dedupe, matches, scoreHabit } from './score';
 import { event, habit, on } from './test-helpers';
 
 const week = { from: '2026-09-28', to: '2026-10-04' };
@@ -174,5 +174,41 @@ describe('matches', () => {
     expect(matches({ types: ['activity.created'], where: { sport_type: 'Run' } }, bare)).toBe(
       false,
     );
+  });
+});
+
+describe('manual entries', () => {
+  const entry = (habitId: string, date: string, value?: number) =>
+    event(date, { type: MANUAL_ENTRY, sourceId: 'manual', value, meta: { habit_id: habitId } });
+
+  it('count for their habit even past its source, type and where filter', () => {
+    const run = habit({
+      id: 'run',
+      match: { sourceIds: ['strava'], types: ['activity.created'], where: { sport_type: ['Run'] } },
+    });
+    const cells = scoreHabit(run, [entry('run', '2026-09-29')], week, today);
+    expect(cells[1]).toMatchObject({ value: 1, state: 'done' });
+    expect(countsFor(run, entry('run', today))).toBe(true);
+  });
+
+  it('add their amount to what a source reported', () => {
+    const listen = habit({
+      id: 'listen',
+      match: { types: ['listening.day'] },
+      rule: { aggregate: 'sum', atLeast: 1200 },
+    });
+    const events = [
+      event('2026-09-29', { type: 'listening.day', value: 600 }),
+      entry('listen', '2026-09-29', 900),
+    ];
+    expect(scoreHabit(listen, events, week, today)[1]).toMatchObject({
+      value: 1500,
+      state: 'done',
+    });
+  });
+
+  it("don't count for other habits", () => {
+    const cells = scoreHabit(habit({ id: 'a' }), [entry('b', '2026-09-29')], week, today);
+    expect(cells[1].value).toBe(0);
   });
 });

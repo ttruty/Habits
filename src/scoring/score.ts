@@ -32,6 +32,21 @@ export function dedupe(events: readonly HabitEvent[]): HabitEvent[] {
   return [...byKey.values()];
 }
 
+/**
+ * An entry added by hand to correct a habit's day (a source missed it, or under-counted). It
+ * names its habit in meta.habit_id and counts for that habit whatever the habit's match says.
+ */
+export const MANUAL_ENTRY = 'manual.entry';
+
+export function isEntryFor(habit: Habit, event: HabitEvent): boolean {
+  return event.type === MANUAL_ENTRY && event.meta?.habit_id === habit.id;
+}
+
+/** Whether `event` counts towards `habit`: it matches the habit, or it's an entry for it. */
+export function countsFor(habit: Habit, event: HabitEvent): boolean {
+  return isEntryFor(habit, event) || matches(habit.match, event);
+}
+
 export function matches(match: HabitMatch, event: HabitEvent): boolean {
   if (!match.types.includes(event.type)) return false;
   if (match.sourceIds && !match.sourceIds.includes(event.sourceId)) return false;
@@ -51,7 +66,7 @@ export function scoreHabit(
 ): DayCell[] {
   const totals = new Map<DateKey, number>();
   for (const e of dedupe(events)) {
-    if (!inRange(e.localDate, range) || !matches(habit.match, e)) continue;
+    if (!inRange(e.localDate, range) || !countsFor(habit, e)) continue;
     const amount = habit.rule.aggregate === 'count' ? 1 : (e.value ?? 0);
     totals.set(e.localDate, (totals.get(e.localDate) ?? 0) + amount);
   }

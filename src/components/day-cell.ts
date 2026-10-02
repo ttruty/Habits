@@ -44,6 +44,8 @@ export function dayCell(
     showValue: boolean;
     /** Hand-ticked habits: makes the cell a toggle button. */
     onToggle?: () => void;
+    /** Other habits the viewer may edit: makes the cell a button that opens the day. */
+    onOpen?: (opener: HTMLElement) => void;
   },
 ) {
   const label = `${habit.name}, ${opts.dayLabel}: ${cellStatus(habit, cell, opts.unit)}`;
@@ -65,8 +67,7 @@ export function dayCell(
       </button>
     </td>`;
   }
-  return html`<td class="cell ${opts.isToday ? 'today' : ''}" title=${label}>
-    <span
+  const content = html`<span
       class="mark ${mark} ${metric ? `level-${level(cell.value, opts.max)}` : ''}"
       aria-hidden="true"
       >${over ? '✕' : ''}</span
@@ -74,6 +75,23 @@ export function dayCell(
       metric && opts.showValue && cell.value > 0
         ? html`<span class="value" aria-hidden="true">${formatValue(cell.value, opts.unit)}</span>`
         : ''
-    }<span class="sr">${label}</span>
+    }`;
+  const onOpen = opts.onOpen;
+  if (onOpen && ['done', 'missed', 'pending', 'metric'].includes(cell.state)) {
+    return html`<td class="cell ${opts.isToday ? 'today' : ''}">
+      <button
+        type="button"
+        class="tick open"
+        aria-haspopup="dialog"
+        aria-label=${label}
+        title=${label}
+        @click=${(e: Event) => onOpen(e.currentTarget as HTMLElement)}
+      >
+        ${content}
+      </button>
+    </td>`;
+  }
+  return html`<td class="cell ${opts.isToday ? 'today' : ''}" title=${label}>
+    ${content}<span class="sr">${label}</span>
   </td>`;
 }

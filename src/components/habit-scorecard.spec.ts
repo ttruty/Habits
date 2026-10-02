@@ -84,7 +84,11 @@ describe('<habit-scorecard>', () => {
 
   it('labels every cell in words', async () => {
     const card = await mount(provider([habit()], [event('2026-09-29')]));
-    const labels = $$(card, 'tbody td.cell .sr').map(text);
+    // A cell's words are hidden text, or its button's label when it opens the day.
+    const labels = $$(card, 'tbody td.cell').map(
+      (td) =>
+        td.querySelector('button')?.getAttribute('aria-label') ?? text(td.querySelector('.sr')),
+    );
     expect(labels[0]).toMatch(/^Workout, Monday.*: missed$/);
     expect(labels[1]).toMatch(/^Workout, Tuesday.*: done$/);
     expect(labels[3]).toMatch(/: not yet$/);
@@ -286,6 +290,117 @@ describe('hand-ticked habits', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     await settle(card);
     expect(p.ranges.length).toBe(before + 1);
+  });
+});
+
+describe('correcting a day', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  const run = habit({
+    id: 'run',
+    name: 'Run',
+    match: { sourceIds: ['st'], types: ['activity.created'], where: { sport_type: ['Run'] } },
+  });
+  const listen = habit({
+    id: 'listen',
+    name: 'Listen',
+    match: { sourceIds: ['yb'], types: ['listening.day'] },
+    rule: { aggregate: 'sum', atLeast: 1200 },
+  });
+  const sources: Source[] = [
+    { id: 'st', kind: 'strava', label: 'Strava', config: { connected: true }, createdAt: 'T' },
+    { id: 'yb', kind: 'yarnbeard', label: 'Yarnbeard', config: {}, createdAt: 'T' },
+  ];
+  const opens = (card: HabitScorecard) => $$(card, 'tbody button.open') as HTMLButtonElement[];
+  const detail = (card: HabitScorecard) =>
+    $(card, 'day-detail') as HTMLElement & { updateComplete: Promise<void> };
+  const inDetail = (card: HabitScorecard, sel: string) =>
+    detail(card).shadowRoot!.querySelector(sel);
+
+  it('opens a missed day and marks it done', async () => {
+    const p = provider([run], [], sources);
+    const card = await mount(p);
+    const [monday] = opens(card);
+    expect(monday.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(monday.getAttribute('aria-label')).toMatch(/^Run, Monday.*: missed$/);
+    monday.click();
+    await settle(card);
+    await detail(card).updateComplete;
+    expect(($(card, '#day-dialog') as HTMLDialogElement).open).toBe(true);
+    expect(text(inDetail(card, 'h2'))).toMatch(/^Run · Monday/);
+    expect(text(inDetail(card, 'p.muted'))).toBe('Nothing reported.');
+
+    (inDetail(card, 'button.primary') as HTMLButtonElement).click();
+    await settle(card);
+    await settle(card);
+    expect(p.events).toHaveLength(1);
+    expect(p.events[0]).toMatchObject({
+      type: 'manual.entry',
+      localDate: '2026-09-28',
+      value: 1,
+      meta: { habit_id: 'run' },
+    });
+    expect(opens(card)[0].getAttribute('aria-label')).toMatch(/: done$/);
+  });
+
+  it('adds a missed amount in the habit’s unit, and removes it again', async () => {
+    const reported = event('2026-09-29', {
+      sourceId: 'yb',
+      type: 'listening.day',
+      value: 600,
+      unit: 'seconds',
+    });
+    const p = provider([listen], [reported], sources);
+    const card = await mount(p);
+    opens(card)[1].click();
+    await settle(card);
+    await detail(card).updateComplete;
+    expect(text(inDetail(card, 'li'))).toBe('Yarnbeard · 10m');
+    expect(text(inDetail(card, '#amount-unit'))).toBe('minutes');
+
+    const input = inDetail(card, '#amount') as HTMLInputElement;
+    input.value = '15';
+    input.dispatchEvent(new Event('input'));
+    (inDetail(card, 'form') as HTMLFormElement).requestSubmit();
+    await settle(card);
+    await settle(card);
+    const added = p.events.find((e) => e.type === 'manual.entry')!;
+    expect(added).toMatchObject({ value: 900, unit: 'seconds' });
+    expect(opens(card)[1].getAttribute('aria-label')).toMatch(/: done, 25 minutes$/);
+
+    await detail(card).updateComplete;
+    (inDetail(card, 'button[aria-label^="Remove"]') as HTMLButtonElement).click();
+    await settle(card);
+    await settle(card);
+    expect(p.events.some((e) => e.type === 'manual.entry')).toBe(false);
+  });
+
+  it('refuses an empty or zero amount', async () => {
+    const card = await mount(provider([listen], [], sources));
+    opens(card)[0].click();
+    await settle(card);
+    await detail(card).updateComplete;
+    (inDetail(card, 'form') as HTMLFormElement).requestSubmit();
+    await detail(card).updateComplete;
+    expect(text(inDetail(card, '.message'))).toBe('Enter an amount above 0.');
+  });
+
+  it('returns focus to the cell when the dialog closes', async () => {
+    const card = await mount(provider([run], [], sources));
+    const monday = opens(card)[0];
+    monday.click();
+    await settle(card);
+    ($(card, '#day-dialog') as HTMLDialogElement).close();
+    await settle(card);
+    expect($(card, '#day-dialog')).toBeNull();
+    expect(card.shadowRoot!.activeElement).toBe(opens(card)[0]);
+  });
+
+  it('opens nothing on a read-only scorecard or for future days', async () => {
+    const readOnly = await mount({ ...provider([run], [], sources), canEdit: false });
+    expect(opens(readOnly)).toHaveLength(0);
+    const card = await mount(provider([run], [], sources));
+    expect(opens(card)).toHaveLength(4); // Mon–Thu; Fri–Sun are upcoming
   });
 });
 

@@ -16,6 +16,8 @@ export function scoreRow(
     compact: boolean;
     /** Set for hand-ticked habits the viewer may edit. */
     toggle?: (date: DateKey) => void;
+    /** Set for other habits the viewer may edit: opens the day for corrections. */
+    open?: (date: DateKey, opener: HTMLElement) => void;
   },
 ) {
   const { habit, cells, unit } = row;
@@ -33,6 +35,7 @@ export function scoreRow(
         isToday: cell.date === opts.today,
         showValue: !opts.compact,
         onToggle: opts.toggle && (() => opts.toggle!(cell.date)),
+        onOpen: opts.open && ((opener) => opts.open!(cell.date, opener)),
       }),
     )}
     <td class="summary">

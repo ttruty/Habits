@@ -3,6 +3,7 @@ import { createDemoProvider } from '../data/demo-provider';
 import type { DataProvider } from '../data/provider';
 import { checkInEvent, checkInsOn, manualSourceOf } from '../connectors/manual';
 import { connectorFor } from '../connectors/registry';
+import './day-detail';
 import { formatDate } from '../format';
 import type { DateKey, DateRange, Habit, HabitEvent, Source } from '../model';
 import {
@@ -16,6 +17,7 @@ import {
   type Weekday,
 } from '../scoring/dates';
 import { buildScorecard } from '../scoring/scorecard';
+import { countsFor, dedupe } from '../scoring/score';
 import { base } from '../styles/base';
 import { scoreRow } from './score-row';
 
@@ -50,6 +52,7 @@ export class HabitScorecard extends LitElement {
     events: { state: true },
     status: { state: true },
     notice: { state: true },
+    editing: { state: true },
   };
 
   declare theme: Theme;
@@ -71,6 +74,10 @@ export class HabitScorecard extends LitElement {
   declare private events: HabitEvent[];
   declare private status: 'loading' | 'ready' | 'error';
   declare private notice: string;
+  /** The day open for corrections, if any. */
+  declare private editing: { habit: Habit; date: DateKey } | undefined;
+  /** The cell that opened it, to take focus back on close. */
+  private opener: HTMLElement | undefined;
 
   private loads = 0;
   /** Cells with a toggle in flight ("habitId:date"); taps on them are ignored. */
@@ -182,6 +189,46 @@ export class HabitScorecard extends LitElement {
     await this.load();
   }
 
+  private openDay(habit: Habit, date: DateKey, opener: HTMLElement) {
+    this.opener = opener;
+    this.editing = { habit, date };
+    void this.updateComplete.then(() =>
+      this.renderRoot.querySelector<HTMLDialogElement>('#day-dialog')?.showModal(),
+    );
+  }
+
+  private closeDay() {
+    this.editing = undefined;
+    this.opener?.focus();
+    this.opener = undefined;
+  }
+
+  private renderDayDialog(dayLabel: (d: DateKey) => string) {
+    const editing = this.editing;
+    if (!editing) return nothing;
+    const { habit, date } = editing;
+    const events = dedupe(this.events).filter((e) => e.localDate === date && countsFor(habit, e));
+    return html`<dialog
+      id="day-dialog"
+      aria-label="${habit.name}, ${dayLabel(date)}"
+      @close=${this.closeDay}
+    >
+      <day-detail
+        .habit=${habit}
+        .date=${date}
+        .dayLabel=${dayLabel(date)}
+        .events=${events}
+        .sources=${this.sources}
+        .provider=${this.provider}
+        .today=${this.todayKey}
+        @change=${() => void this.load()}
+      ></day-detail>
+      <form method="dialog" class="dialog-actions">
+        <button type="submit">Close</button>
+      </form>
+    </dialog>`;
+  }
+
   private step(direction: -1 | 1) {
     const anchor = this.anchor ?? this.todayKey;
     this.anchor =
@@ -268,6 +315,11 @@ export class HabitScorecard extends LitElement {
       const source = this.provider.canEdit ? manualSourceOf(habit, this.sources) : undefined;
       return source && ((date: DateKey) => void this.toggle(habit, source, date));
     };
+    // Every other habit opens a day for corrections (when the provider can write).
+    const openFor = (habit: Habit) =>
+      this.provider.canEdit && !manualSourceOf(habit, this.sources)
+        ? (date: DateKey, opener: HTMLElement) => this.openDay(habit, date, opener)
+        : undefined;
 
     return html`<div class="scroll">
         <table class=${month ? 'compact' : ''} aria-labelledby="range">
@@ -303,12 +355,13 @@ export class HabitScorecard extends LitElement {
                 summary: month ? 'days' : 'week',
                 compact: month,
                 toggle: toggleFor(row.habit),
+                open: openFor(row.habit),
               }),
             )}
           </tbody>
         </table>
       </div>
-      ${this.renderAttribution(rows.map((r) => r.habit))}
+      ${this.renderAttribution(rows.map((r) => r.habit))} ${this.renderDayDialog(dayLabel)}
       ${this.notice ? html`<p class="status error" role="alert">${this.notice}</p>` : nothing}`;
   }
 
@@ -458,6 +511,26 @@ export class HabitScorecard extends LitElement {
         color: var(--hs-text-muted);
         font-size: 0.8em;
         margin-left: 1px;
+      }
+
+      dialog {
+        width: min(28rem, calc(100vw - 2rem));
+        border: 1px solid var(--hs-border);
+        border-radius: var(--hs-radius);
+        background: var(--hs-bg);
+        color: var(--hs-text);
+        padding: calc(var(--hs-space) * 2);
+      }
+      dialog::backdrop {
+        background: rgb(0 0 0 / 0.4);
+      }
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: var(--hs-space);
+      }
+      .tick.open .value {
+        display: block;
       }
 
       .attribution {

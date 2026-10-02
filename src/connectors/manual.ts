@@ -1,4 +1,6 @@
-import type { DateKey, Habit, HabitEvent, HabitMatch, Source } from '../model';
+import type { DataProvider } from '../data/provider';
+import type { DateKey, Habit, HabitEvent, HabitMatch, Source, Unit } from '../model';
+import { MANUAL_ENTRY } from '../scoring/score';
 import { toLocalNoon } from '../scoring/dates';
 import type { Connector } from './types';
 
@@ -59,4 +61,39 @@ export function checkInsOn(
       e.localDate === date &&
       e.meta?.habit_id === habit.id,
   );
+}
+
+/** The Manual source, creating it the first time it's needed. */
+export async function ensureManualSource(
+  provider: DataProvider,
+  sources: readonly Source[],
+): Promise<Source> {
+  return (
+    sources.find((s) => s.kind === 'manual') ??
+    (await provider.addSource({ kind: 'manual', label: 'Manual', config: {} }))
+  );
+}
+
+/**
+ * A correction for any habit's day: counts for `habit` whatever its match says (see
+ * scoring/score.ts). Each entry is its own event, so several can be added and removed one by one.
+ */
+export function entryEvent(
+  habit: Habit,
+  source: Source,
+  date: DateKey,
+  amount: { value: number; unit?: Unit },
+  today: DateKey,
+  now: Date,
+): Omit<HabitEvent, 'id'> {
+  return {
+    sourceId: source.id,
+    externalId: `entry:${habit.id}:${date}:${crypto.randomUUID()}`,
+    type: MANUAL_ENTRY,
+    occurredAt: (date === today ? now : toLocalNoon(date)).toISOString(),
+    localDate: date,
+    value: amount.value,
+    ...(amount.unit ? { unit: amount.unit } : {}),
+    meta: { habit_id: habit.id },
+  };
 }

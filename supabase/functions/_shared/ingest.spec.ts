@@ -145,9 +145,8 @@ describe('helpers', () => {
   });
 
   it('allows the headers supabase-js sends, so functions.invoke passes the preflight', () => {
-    const allowed = corsHeaders('https://timtruty.com', ['https://timtruty.com'])
-      ['Access-Control-Allow-Headers'].split(',')
-      .map((h) => h.trim());
+    const headers = corsHeaders('https://timtruty.com', ['https://timtruty.com']);
+    const allowed = headers['Access-Control-Allow-Headers'].split(',').map((h) => h.trim());
     for (const h of ['authorization', 'apikey', 'content-type', 'x-client-info']) {
       expect(allowed).toContain(h);
     }

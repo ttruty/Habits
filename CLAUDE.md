@@ -296,6 +296,15 @@ of fake data, seeded per date, so the UI, the embed and the tests run without Su
   so only the owner's account (created once in the dashboard) can sign in.
   Every table has `owner_id default auth.uid()` and an owner-only RLS policy;
   `anon` has no grants. Token hashes can be inserted but never read back.
+- **Corrections (any habit):** when a source missed something, the owner taps
+  a day (not hand-ticked habits, which toggle) to open a dialog listing what
+  was reported and what they added. An added entry is a `manual.entry` event
+  from the Manual source with `meta.habit_id`; scoring counts it for that
+  habit whatever the habit's match says (`countsFor` in `scoring/score.ts`).
+  Count habits: "Mark as done" (one entry = one). Amount habits: an amount in
+  the habit's unit (minutes, km, steps), added to what was reported. Entries
+  only add; they never hide reported data. Entries are the owner's own data,
+  so Strava's 7-day cache limit doesn't apply to them.
 - The scorecard reloads when the tab becomes visible again, so a tick on one
   device shows on another without a manual refresh.
 - PostgREST returns at most 1000 rows per request; `listEvents` pages.
@@ -313,6 +322,7 @@ npm run e2e            # Playwright: app + embed-in-a-foreign-page smoke test
 npm run build          # typecheck, then app + embed bundle into dist/
 npm run size           # fail if dist/embed.js is over 25 KB gzipped
 npm run lint
+npm run check          # everything CI runs (lint, format, tests + coverage, build, size): run before every push
 supabase functions serve
 supabase db reset      # apply migrations + seed
 ```

@@ -20,6 +20,7 @@ export default defineConfig(({ command, isPreview }) => ({
     include: ['src/**/*.spec.ts', 'supabase/functions/**/*.spec.ts', 'clients/**/*.spec.ts'],
     // A zone with DST, so date code is tested against real clock changes.
     env: { TZ: 'America/Chicago' },
+    setupFiles: ['src/test-setup.ts'],
     coverage: {
       include: [
         'src/scoring/**',

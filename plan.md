@@ -315,6 +315,18 @@ entry" (see CLAUDE.md, rule 4).
 
 Append findings, surprises and as-built changes here, newest first.
 
+- _2026-10-02_: CI failed on the last two pushes (CORS and callback fixes)
+  and went unnoticed: a new test tripped ESLint's `no-unexpected-multiline`
+  after Prettier wrapped it, and only the tests had been run locally. The
+  functions were deployed directly, so they worked, but the site didn't
+  redeploy. Fixed, and added `npm run check` (exactly what CI runs).
+- _2026-10-02_: **Corrections** added at the owner's request: tap a day on any
+  habit to add a missed entry (or an amount) when an API missed the activity.
+  Stored as `manual.entry` events tied to the habit by `meta.habit_id`, which
+  scoring always counts for that habit. Additive only; each entry can be
+  removed. Native `<dialog>` (focus returns to the cell; axe-clean). jsdom has
+  no `showModal`, so `src/test-setup.ts` stands in for unit tests.
+
 - _2026-10-02_: Withings' portal rejected the callback URL ("Fail to connect
   to callback url … http status [405]"): it checks reachability with a HEAD,
   and `oauth/<kind>/callback` only accepted GET. The callback now answers HEAD,

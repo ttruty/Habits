@@ -139,3 +139,31 @@ test('connects an app and shows its token once, accessibly', async ({ page, cont
   await expect(page.getByText('Waiting for its first report')).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
+
+test('corrects a missed day through an accessible dialog', async ({ page }) => {
+  await page.goto('./');
+  const row = card(page).getByRole('row', { name: /Run/ });
+  await expect(row).toBeVisible();
+  // Find a missed Run day, going back a week at a time if needed.
+  let missed = row.getByRole('button', { name: /: missed$/ });
+  for (let i = 0; i < 4 && (await missed.count()) === 0; i++) {
+    await card(page).getByRole('button', { name: 'Previous week' }).click();
+    missed = row.getByRole('button', { name: /: missed$/ });
+  }
+  const cell = missed.first();
+  const label = (await cell.getAttribute('aria-label'))!.replace(/: missed$/, '');
+  await cell.click();
+
+  const dialog = card(page).getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('heading', { level: 2 })).toContainText('Run ·');
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await dialog.getByRole('button', { name: 'Mark as done' }).click();
+  await expect(dialog.getByRole('status')).toHaveText('Added.');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  const fixed = row.getByRole('button', { name: `${label}: done` });
+  await expect(fixed).toBeFocused();
+});
