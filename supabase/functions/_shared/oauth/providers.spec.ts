@@ -71,6 +71,8 @@ describe('Withings', () => {
     expect(t).toMatchObject({ accessToken: 'a', refreshToken: 'r', userId: '12345' });
     expect(t.expiresAt.getTime() - Date.now()).toBeGreaterThan(10_000_000);
     expect(withingsProvider.scopeGranted(new URLSearchParams(), t)).toBe(true);
+    // Before the exchange there are no tokens yet: don't refuse (the bug that blocked every connect).
+    expect(withingsProvider.scopeGranted(new URLSearchParams('code=c&state=s'))).toBe(true);
     expect(withingsProvider.scopeGranted(new URLSearchParams(), { ...t, scope: 'user.info' })).toBe(
       false,
     );

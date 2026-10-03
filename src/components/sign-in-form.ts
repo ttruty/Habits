@@ -7,17 +7,21 @@ export class SignInForm extends LitElement {
   static override properties = {
     auth: { attribute: false },
     error: { type: String },
+    note: { attribute: false },
     state: { state: true },
   };
 
   declare auth: Auth;
   /** Shown above the form, e.g. an expired link. */
   declare error: string;
+  /** Context shown above the form, e.g. what happened on an OAuth return. */
+  declare note: string;
   declare private state: 'idle' | 'sending' | 'sent' | 'failed';
 
   constructor() {
     super();
     this.error = '';
+    this.note = '';
     this.state = 'idle';
   }
 
@@ -40,6 +44,7 @@ export class SignInForm extends LitElement {
     }
     const failed = this.state === 'failed';
     return html`<form @submit=${this.send}>
+      ${this.note ? html`<p class="note" role="status">${this.note}</p>` : nothing}
       ${this.error && !failed ? html`<p class="error" role="alert">${this.error}</p>` : nothing}
       <label for="email">Email</label>
       <div class="row">
@@ -69,6 +74,13 @@ export class SignInForm extends LitElement {
   static override styles = [
     ...base,
     css`
+      .note {
+        margin-bottom: var(--space-4);
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-md);
+        background: var(--color-success-soft);
+        color: var(--color-ink);
+      }
       label {
         display: block;
         font: var(--text-label);

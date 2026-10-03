@@ -2,7 +2,8 @@ import { LitElement, css, html, nothing } from 'lit';
 import { sourceAlerts, type SourceAlert } from '../data/alerts';
 import type { Auth } from '../data/auth';
 import type { DataProvider } from '../data/provider';
-import type { DateKey } from '../model';
+import { connectorFor } from '../connectors/registry';
+import type { DateKey, Source } from '../model';
 import type { AppData, Route, Toast } from './app-events';
 import { addDays, localDateKey } from '../scoring/dates';
 import { base } from '../styles/base';
@@ -189,6 +190,20 @@ export class HabitsApp extends LitElement {
     );
   }
 
+  /**
+   * A provider's "Allow" can open its return link in another browser than the one Habits is
+   * signed in to (e.g. the Withings app opens the default browser). The connection is already
+   * saved by then; say so on the sign-in screen rather than just asking for an email.
+   */
+  private oauthNote(): string {
+    const [kind, outcome] = (this.oauthOutcome ?? '').split(':');
+    const name = connectorFor(kind as Source['kind'])?.displayName;
+    if (!name || !outcome) return '';
+    return outcome === 'connected'
+      ? `${name} is connected. If Habits is open in another browser or as an installed app, go back there. Or sign in here.`
+      : `${name} wasn't connected. Sign in, then try again from Sources.`;
+  }
+
   /** The OAuth outcome, once: going back to Sources later shouldn't repeat it. */
   private handOver() {
     const outcome = this.oauthOutcome;
@@ -201,7 +216,11 @@ export class HabitsApp extends LitElement {
       return html`<p class="page" role="status">Loading…</p>`;
     }
     if (!this.signedIn) {
-      return html`<sign-in-form .auth=${this.auth!} .error=${this.linkError}></sign-in-form>`;
+      return html`<sign-in-form
+        .auth=${this.auth!}
+        .error=${this.linkError}
+        .note=${this.oauthNote()}
+      ></sign-in-form>`;
     }
     const tab =
       this.route.name === 'grid'

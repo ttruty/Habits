@@ -180,6 +180,26 @@ describe('returning from an OAuth provider', () => {
     history.replaceState(null, '', '/');
   });
 
+  it('says the connection is saved when the return lands signed out', async () => {
+    history.replaceState(null, '', '/?oauth=withings:connected');
+    const app = await mount({ provider: createDemoProvider(), auth: fakeAuth(null) });
+    const form = $(app, 'sign-in-form')!;
+    await (form as unknown as { updateComplete: Promise<void> }).updateComplete;
+    expect(form.shadowRoot!.querySelector('.note')?.textContent).toContain(
+      'Withings is connected.',
+    );
+  });
+
+  it("says it wasn't connected when that failed", async () => {
+    history.replaceState(null, '', '/?oauth=withings:failed');
+    const app = await mount({ provider: createDemoProvider(), auth: fakeAuth(null) });
+    const form = $(app, 'sign-in-form')!;
+    await (form as unknown as { updateComplete: Promise<void> }).updateComplete;
+    expect(form.shadowRoot!.querySelector('.note')?.textContent).toContain(
+      "Withings wasn't connected.",
+    );
+  });
+
   it('opens Sources with the outcome, once, and tidies the address bar', async () => {
     history.replaceState(null, '', '/?keep=1&oauth=strava:denied#x');
     const app = await mount({ provider: createDemoProvider() });

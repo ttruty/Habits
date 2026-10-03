@@ -36,7 +36,10 @@ export interface OAuthProvider {
   connector: ServerConnector;
   displayName: string;
   authorizeUrl(app: OAuthApp, redirectUri: string, state: string): string;
-  /** Whether the callback (and the token reply) show every permission we need. */
+  /**
+   * Whether every permission we need was granted. Called twice: before the code exchange with the
+   * callback only (return true if the provider only says so in the token reply), then with tokens.
+   */
   scopeGranted(callback: URLSearchParams, tokens?: Tokens): boolean;
   exchangeCode(app: OAuthApp, code: string, redirectUri: string): Promise<Tokens>;
   refresh(app: OAuthApp, refreshToken: string): Promise<Tokens>;

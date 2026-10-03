@@ -9,6 +9,17 @@ export interface Auth {
   signOut(): Promise<void>;
 }
 
+/**
+ * Whether the page URL is a magic-link return (supabase-js `detectSessionInUrl`). Only the
+ * fragment counts: `#access_token=…` or `#error=…&error_code=…`. By default supabase-js also takes
+ * `?error=` or `?code=` in the query string as a sign-in attempt, and when that "fails" it skips
+ * restoring the stored session, so a stray parameter from another site (an OAuth provider
+ * sending you back) looked like being signed out.
+ */
+export function isAuthRedirect(url: URL): boolean {
+  return /(^#|&)(access_token|error_code)=/.test(url.hash);
+}
+
 export function supabaseAuth(client: SupabaseClient, redirectTo: string): Auth {
   return {
     onChange(listener) {

@@ -43,9 +43,11 @@ export const withingsProvider: OAuthProvider = {
     return u.href;
   },
 
-  // Withings reports the granted scope in the token reply, not the callback.
+  // Withings reports the granted scope in the token reply, not the callback: before the exchange
+  // (no tokens yet) there's nothing to check.
   scopeGranted: (_callback, t) =>
-    (t?.scope ?? '')
+    !t ||
+    (t.scope ?? '')
       .split(',')
       .map((s) => s.trim())
       .includes(WITHINGS_SCOPE),

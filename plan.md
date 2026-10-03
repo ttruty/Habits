@@ -315,6 +315,18 @@ entry" (see CLAUDE.md, rule 4).
 
 Append findings, surprises and as-built changes here, newest first.
 
+- _2026-10-03_: **Withings never connected, and its return showed the sign-in screen.**
+  - Bug: the OAuth callback checks scope before the code exchange for every provider, but
+    Withings only reports scope in the token reply, so its check always failed and every connect
+    ended as `missing-scope` before the code was used. `scopeGranted` now defers when there are
+    no tokens yet (the interface says it's called twice). Covered by a provider test.
+  - Sign-in screen: Withings' "Allow" can open the return link in another browser than the one
+    Habits is signed in to (the Withings app opens the default browser). The connection is saved
+    server-side before the redirect; the sign-in screen now says so when it sees `?oauth=`.
+  - Hardening: supabase-js treats `?error=`/`?code=` in the query string as a sign-in attempt and,
+    when that "fails", skips restoring the stored session, which looks exactly like being
+    signed out. `detectSessionInUrl` now only accepts magic-link fragments (`isAuthRedirect`).
+
 - _2026-10-02_: **Redesign to `design/`** (the owner's design system): full adoption.
   - Screens: Today (week strip, progress, Up next / Done habit cards with check circles), Progress
     (list, then hero + 3 stat tiles + 5-week heatmap that opens days for corrections),

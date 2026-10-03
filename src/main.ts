@@ -23,14 +23,19 @@ if (demo) {
   }
   app.provider = createDemoProvider({ storage });
 } else {
-  const [{ createClient }, { supabaseAuth, linkErrorFromUrl }, { createSupabaseProvider }] =
-    await Promise.all([
-      import('@supabase/supabase-js'),
-      import('./data/auth'),
-      import('./data/supabase-provider'),
-    ]);
+  const [
+    { createClient },
+    { supabaseAuth, linkErrorFromUrl, isAuthRedirect },
+    { createSupabaseProvider },
+  ] = await Promise.all([
+    import('@supabase/supabase-js'),
+    import('./data/auth'),
+    import('./data/supabase-provider'),
+  ]);
   app.linkError = linkErrorFromUrl(location.hash);
-  const client = createClient(url, key);
+  const client = createClient(url, key, {
+    auth: { detectSessionInUrl: (u: URL) => isAuthRedirect(u) },
+  });
   app.auth = supabaseAuth(client, new URL(import.meta.env.BASE_URL, location.origin).href);
   app.provider = createSupabaseProvider(client, url);
 }

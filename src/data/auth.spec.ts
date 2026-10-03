@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
-import { supabaseAuth } from './auth';
+import { isAuthRedirect, supabaseAuth } from './auth';
 
 function fakeClient(otpError: Error | null = null) {
   let listener: (event: string, session: unknown) => void = () => {};
@@ -48,5 +48,21 @@ describe('supabaseAuth', () => {
     await expect(auth.sendLink('x@example.com')).rejects.toThrow('Signups not allowed');
     await auth.signOut();
     expect(f.auth.signOut).toHaveBeenCalled();
+  });
+});
+
+describe('isAuthRedirect', () => {
+  const at = (href: string) => isAuthRedirect(new URL(href));
+
+  it('is a magic-link return only when the fragment carries one', () => {
+    expect(at('https://x/Habits/#access_token=abc&refresh_token=d')).toBe(true);
+    expect(at('https://x/Habits/#error=access_denied&error_code=otp_expired')).toBe(true);
+  });
+
+  it('ignores query parameters other sites send back', () => {
+    expect(at('https://x/Habits/?oauth=withings:connected')).toBe(false);
+    expect(at('https://x/Habits/?code=abc&state=xyz')).toBe(false);
+    expect(at('https://x/Habits/?error=access_denied&error_description=no')).toBe(false);
+    expect(at('https://x/Habits/')).toBe(false);
   });
 });
