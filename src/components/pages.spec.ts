@@ -369,6 +369,17 @@ describe('<more-page>', () => {
     expect($(el, 'data-page')).not.toBeNull();
   });
 
+  it('shows the version and links to the commit it was built from', async () => {
+    const { el } = await mount('more-page', createDemoProvider({ now: () => now }));
+    const version = $(el, '.version')!;
+    expect(text(version)).toMatch(
+      /^Version \d+\.\d+\.\d+ · ([0-9a-f]{7}|dev) · built \d{4}-\d{2}-\d{2}$/,
+    );
+    const link = version.querySelector('a');
+    if (link)
+      expect(link.href).toMatch(/^https:\/\/github\.com\/ttruty\/Habits\/commit\/[0-9a-f]{40}$/);
+  });
+
   it('signs out', async () => {
     const signOut = vi.fn(async () => {});
     const auth = { onChange: () => () => {}, sendLink: async () => {}, signOut };

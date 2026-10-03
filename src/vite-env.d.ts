@@ -8,3 +8,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** Set at build time in vite.config.ts. */
+declare const __APP_VERSION__: string;
+/** Full commit sha, or '' outside a git checkout. */
+declare const __APP_COMMIT__: string;
+/** Build date, YYYY-MM-DD. */
+declare const __APP_BUILT__: string;

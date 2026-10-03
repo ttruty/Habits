@@ -14,6 +14,8 @@ const THEMES: { value: ThemeSetting; label: string; icon: UiIcon }[] = [
   { value: 'dark', label: 'Dark', icon: 'moon' },
 ];
 
+const REPO = 'https://github.com/ttruty/Habits';
+
 /** Appearance, habit management, export/import, and the account. */
 export class MorePage extends LitElement {
   static override properties = {
@@ -82,6 +84,18 @@ export class MorePage extends LitElement {
             : html`<p class="caption">Demo data. Changes stay in this browser.</p>`
         }
       </section>
+
+      <p class="caption version">
+        Version ${__APP_VERSION__} ·
+        ${
+          __APP_COMMIT__
+            ? html`<a href="${REPO}/commit/${__APP_COMMIT__}" target="_blank" rel="noopener"
+                >${__APP_COMMIT__.slice(0, 7)}</a
+              >`
+            : 'dev'
+        }
+        · built ${__APP_BUILT__}
+      </p>
     </section>`;
   }
 
@@ -94,6 +108,16 @@ export class MorePage extends LitElement {
         flex-direction: column;
         align-items: flex-start;
         gap: var(--space-3);
+      }
+      .version {
+        text-align: center;
+      }
+      .version a {
+        display: inline-flex;
+        align-items: center;
+        min-height: var(--touch-min);
+        color: var(--color-ink-2);
+        font-family: var(--font-mono);
       }
       .segmented {
         display: grid;
