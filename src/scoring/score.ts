@@ -57,6 +57,14 @@ export function matches(match: HabitMatch, event: HabitEvent): boolean {
   return true;
 }
 
+/**
+ * What one event adds to a `count` habit's day: 1, except an entry in counts, which adds its
+ * value (one "Mark done" entry stands in for everything that was missing).
+ */
+function countOf(habit: Habit, e: HabitEvent): number {
+  return isEntryFor(habit, e) && e.unit === 'count' ? (e.value ?? 1) : 1;
+}
+
 /** Per-day cells for `range`. `today` decides what's still open; nothing here reads the clock. */
 export function scoreHabit(
   habit: Habit,
@@ -67,7 +75,7 @@ export function scoreHabit(
   const totals = new Map<DateKey, number>();
   for (const e of dedupe(events)) {
     if (!inRange(e.localDate, range) || !countsFor(habit, e)) continue;
-    const amount = habit.rule.aggregate === 'count' ? 1 : (e.value ?? 0);
+    const amount = habit.rule.aggregate === 'count' ? countOf(habit, e) : (e.value ?? 0);
     totals.set(e.localDate, (totals.get(e.localDate) ?? 0) + amount);
   }
 

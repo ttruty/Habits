@@ -66,6 +66,32 @@ export function amountUnit(draft: Pick<Draft, 'sourceId' | 'type'>, sources: rea
   return type?.amountLabel ? { ...unit, label: type.amountLabel } : unit;
 }
 
+/**
+ * The goal field's unit: "times" when the habit counts events, whatever their unit (a count of
+ * workouts isn't in minutes), otherwise the event type's amount unit.
+ */
+export function goalUnit(
+  draft: Pick<Draft, 'sourceId' | 'type' | 'aggregate'>,
+  sources: readonly Source[],
+) {
+  return draft.aggregate === 'count' ? displayUnit('count') : amountUnit(draft, sources);
+}
+
+/**
+ * How a habit on this source and type adds up by default: as the connector's preset for the type
+ * does (steps sum, workouts count), else count events of type count and total the rest.
+ */
+export function defaultAggregate(
+  draft: Pick<Draft, 'sourceId' | 'type'>,
+  sources: readonly Source[],
+): Draft['aggregate'] {
+  const source = sources.find((s) => s.id === draft.sourceId);
+  const preset = source
+    ? connectorFor(source.kind)?.presets.find((p) => p.match.types.includes(draft.type))
+    : undefined;
+  return preset?.rule.aggregate ?? (unitOf(draft, sources) === 'count' ? 'count' : 'sum');
+}
+
 /** A blank draft for a new habit: hand-ticked, daily, starting today. */
 export function newDraft(id: string, sources: readonly Source[], today: DateKey): Draft {
   const manual = sources.find((s) => s.kind === 'manual');
@@ -91,7 +117,7 @@ export function draftFromHabit(habit: Habit, sources: readonly Source[]): Draft 
   const raw = rule.atLeast ?? rule.atMost;
   const sourceId = habit.match.sourceIds?.[0] ?? '';
   const type = habit.match.types[0] ?? '';
-  const { factor } = displayUnit(unitOf({ sourceId, type }, sources));
+  const { factor } = goalUnit({ sourceId, type, aggregate: rule.aggregate }, sources);
   return {
     id: habit.id,
     name: habit.name,
@@ -153,7 +179,7 @@ export function habitFromDraft(
   const same =
     original?.match.sourceIds?.[0] === draft.sourceId && original.match.types[0] === draft.type;
   const where = same ? original.match.where : undefined;
-  const { factor } = displayUnit(unitOf(draft, sources));
+  const { factor } = goalUnit(draft, sources);
   const amount = Number(draft.amount) * factor;
   return {
     ...base,

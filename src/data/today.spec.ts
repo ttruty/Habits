@@ -134,10 +134,12 @@ describe('markDoneEvents', () => {
     });
   });
 
-  it('adds one entry per count still needed', () => {
-    const twice = habit({ id: 't', rule: { aggregate: 'count', atLeast: 3 } });
-    expect(markDoneEvents(on(twice, [event(today)]), manual, today, today, now)).toHaveLength(2);
-    expect(markDoneEvents(on(workout), manual, today, today, now)).toHaveLength(1);
+  it('adds one entry for every count still needed', () => {
+    const thrice = habit({ id: 't', rule: { aggregate: 'count', atLeast: 3 } });
+    const added = markDoneEvents(on(thrice, [event(today)]), manual, today, today, now);
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ type: 'manual.entry', value: 2, unit: 'count' });
+    expect(markDoneEvents(on(workout), manual, today, today, now)).toMatchObject([{ value: 1 }]);
   });
 
   it('knows a habit’s kind', () => {

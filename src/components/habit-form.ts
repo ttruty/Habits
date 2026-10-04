@@ -14,13 +14,13 @@ import { icon } from '../ui/ui-icons';
 import { changed, navigate, toast, type AppData } from './app-events';
 import {
   NEW_MANUAL,
-  amountUnit,
+  defaultAggregate,
   draftFromHabit,
   eventTypesFor,
+  goalUnit,
   habitFromDraft,
   isManualSource,
   newDraft,
-  unitOf,
   validate,
   type Draft,
   type DraftErrors,
@@ -83,7 +83,7 @@ export class HabitForm extends LitElement {
       if (!types.some((t) => t.type === next.type)) next.type = types[0]?.type ?? '';
     }
     if (key === 'sourceId' || key === 'type') {
-      next.aggregate = unitOf(next, this.data.sources) === 'count' ? 'count' : 'sum';
+      next.aggregate = defaultAggregate(next, this.data.sources);
     }
     this.draft = next;
   }
@@ -150,7 +150,7 @@ export class HabitForm extends LitElement {
     const { sources } = this.data;
     const manual = isManualSource(d.sourceId, sources);
     const types = eventTypesFor(d.sourceId, sources);
-    const unit = amountUnit(d, sources);
+    const unit = goalUnit(d, sources);
     const hasManual = sources.some((s) => s.kind === 'manual');
     const value = (e: Event) => (e.target as HTMLInputElement).value;
     const err = (k: keyof DraftErrors) =>
@@ -281,24 +281,16 @@ export class HabitForm extends LitElement {
                 </div>
                 ${err('amount')}
               </div>
-              ${
-                unitOf(d, sources) === 'count'
-                  ? nothing
-                  : html`<div class="field">
-                      <label for="aggregate">Counting</label>
-                      <select
-                        id="aggregate"
-                        @change=${(e: Event) => this.set('aggregate', value(e) as Draft['aggregate'])}
-                      >
-                        <option value="sum" ?selected=${d.aggregate === 'sum'}>
-                          The day's total
-                        </option>
-                        <option value="count" ?selected=${d.aggregate === 'count'}>
-                          How many times
-                        </option>
-                      </select>
-                    </div>`
-              }`
+              <div class="field">
+                <label for="aggregate">Counting</label>
+                <select
+                  id="aggregate"
+                  @change=${(e: Event) => this.set('aggregate', value(e) as Draft['aggregate'])}
+                >
+                  <option value="sum" ?selected=${d.aggregate === 'sum'}>The day's total</option>
+                  <option value="count" ?selected=${d.aggregate === 'count'}>How many times</option>
+                </select>
+              </div>`
       }
 
       <fieldset class="field">

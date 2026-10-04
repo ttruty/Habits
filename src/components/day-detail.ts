@@ -8,6 +8,10 @@ import { isEntryFor, matches } from '../scoring/score';
 import { base } from '../styles/base';
 import { amountUnit } from './habit-draft';
 
+/** A count entry: "Done", or "Done · 3 times" when one entry stands for several. */
+const doneLabel = (e: HabitEvent) =>
+  e.unit === 'count' && (e.value ?? 1) > 1 ? `Done · ${e.value} times` : 'Done';
+
 /**
  * One habit's day, for corrections: what the sources reported, what you added, and a form to add
  * a missed entry. Lives in the scorecard's dialog; fires `change` after every add or remove.
@@ -151,7 +155,7 @@ export class DayDetail extends LitElement {
               ${added.map(
                 (e) =>
                   html`<li>
-                    <span>${this.counts ? 'Done' : formatValue(e.value ?? 0, e.unit)}</span>
+                    <span>${this.counts ? doneLabel(e) : formatValue(e.value ?? 0, e.unit)}</span>
                     <button
                       type="button"
                       aria-label="Remove ${this.counts ? 'this entry' : formatValue(e.value ?? 0, e.unit, 'long')}"

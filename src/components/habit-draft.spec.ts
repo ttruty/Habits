@@ -3,9 +3,11 @@ import type { Habit, Source } from '../model';
 import {
   NEW_MANUAL,
   amountUnit,
+  defaultAggregate,
   displayUnit,
   draftFromHabit,
   eventTypesFor,
+  goalUnit,
   habitFromDraft,
   newDraft,
   validate,
@@ -161,4 +163,40 @@ it('labels the amount from the event type, e.g. steps', () => {
     factor: 1,
   });
   expect(amountUnit({ sourceId: 'w', type: 'workout.completed' }, sources).label).toBe('minutes');
+});
+
+describe('counting workouts (not minutes)', () => {
+  const workout: Habit = {
+    ...listen,
+    id: 'h2',
+    match: { sourceIds: ['x'], types: ['workout.completed'] },
+    rule: { aggregate: 'count', atLeast: 1 },
+  };
+
+  it('shows and saves a count goal in times, even for an event measured in seconds', () => {
+    const draft = draftFromHabit(workout, sources);
+    expect(draft.amount).toBe('1');
+    expect(goalUnit(draft, sources)).toEqual({ label: 'times', factor: 1 });
+    expect(habitFromDraft({ ...draft, amount: '2' }, sources, workout, 0).rule).toEqual({
+      aggregate: 'count',
+      atLeast: 2,
+    });
+  });
+
+  it('uses minutes once the habit totals the time instead', () => {
+    const draft = { ...draftFromHabit(workout, sources), aggregate: 'sum' as const, amount: '5' };
+    expect(goalUnit(draft, sources).label).toBe('minutes');
+    expect(habitFromDraft(draft, sources, workout, 0).rule).toEqual({
+      aggregate: 'sum',
+      atLeast: 300,
+    });
+  });
+
+  it("defaults to how the connector's preset adds up: workouts count, steps sum", () => {
+    expect(defaultAggregate({ sourceId: 'x', type: 'workout.completed' }, sources)).toBe('count');
+    expect(defaultAggregate({ sourceId: 'w', type: 'steps.day' }, sources)).toBe('sum');
+    expect(defaultAggregate({ sourceId: 'y', type: 'listening.day' }, sources)).toBe('sum');
+    expect(defaultAggregate({ sourceId: 'nope', type: 'x' }, sources)).toBe('sum');
+    expect(defaultAggregate({ sourceId: 'm', type: 'check-in' }, sources)).toBe('count');
+  });
 });

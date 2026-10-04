@@ -88,7 +88,7 @@ export function metaLine(d: HabitDay): string {
 
 /**
  * The events that mark a goal habit done on `date`: a check-in for a hand-ticked habit, otherwise
- * entries for exactly what's missing (one per count still needed, or the missing amount).
+ * one entry for exactly what's missing (the counts still needed, or the missing amount).
  */
 export function markDoneEvents(
   d: HabitDay,
@@ -103,9 +103,9 @@ export function markDoneEvents(
   if (handTicked) return [checkInEvent(habit, manual, date, today, now)];
   const missing = Math.max(1, (habit.rule.atLeast ?? 1) - cell.value);
   if (habit.rule.aggregate === 'count') {
-    return Array.from({ length: Math.ceil(missing) }, () =>
-      entryEvent(habit, manual, date, { value: 1, unit: 'count' }, today, now),
-    );
+    return [
+      entryEvent(habit, manual, date, { value: Math.ceil(missing), unit: 'count' }, today, now),
+    ];
   }
   return [entryEvent(habit, manual, date, { value: missing, unit: d.unit }, today, now)];
 }

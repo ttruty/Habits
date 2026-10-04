@@ -207,6 +207,17 @@ describe('manual entries', () => {
     });
   });
 
+  it('count their value in a count habit when they are in counts, else count once', () => {
+    const thrice = habit({ id: 't', rule: { aggregate: 'count', atLeast: 3 } });
+    const counted = { ...entry('t', '2026-09-29', 2), unit: 'count' as const };
+    const timed = { ...entry('t', '2026-09-30', 300), unit: 'seconds' as const };
+    const bare = { ...entry('t', '2026-10-01'), unit: 'count' as const };
+    const cells = scoreHabit(thrice, [event('2026-09-29'), counted, timed, bare], week, today);
+    expect(cells[1]).toMatchObject({ value: 3, state: 'done' });
+    expect(cells[2].value).toBe(1);
+    expect(cells[3].value).toBe(1);
+  });
+
   it("don't count for other habits", () => {
     const cells = scoreHabit(habit({ id: 'a' }), [entry('b', '2026-09-29')], week, today);
     expect(cells[1].value).toBe(0);
