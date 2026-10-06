@@ -255,6 +255,29 @@ export function frequencyPicker(value: number, pick: (n: number) => void) {
   </div>`;
 }
 
+/** Several-of choices as pill toggles, e.g. which activities count. */
+export function choiceChips<T>(
+  label: string,
+  options: readonly T[],
+  name: (o: T) => string,
+  on: (o: T) => boolean,
+  toggle: (o: T) => void,
+) {
+  return html`<div class="choices" role="group" aria-label=${label}>
+    ${options.map(
+      (o) =>
+        html`<button
+          type="button"
+          class="choice"
+          aria-pressed=${on(o) ? 'true' : 'false'}
+          @click=${() => toggle(o)}
+        >
+          ${on(o) ? icon('check', 16) : nothing} ${name(o)}
+        </button>`,
+    )}
+  </div>`;
+}
+
 export const frequencyLabel = (n: number) =>
   n >= 7 ? 'Every day' : n === 1 ? '1 day a week' : `${n} days a week`;
 
@@ -640,6 +663,23 @@ export const ui = css`
   }
   .day-choice[aria-pressed='true'],
   .day-choice[aria-pressed='true']:hover {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: transparent;
+  }
+
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .choice {
+    min-height: var(--touch-min);
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-pill);
+  }
+  .choice[aria-pressed='true'],
+  .choice[aria-pressed='true']:hover {
     background: var(--color-primary);
     color: var(--color-on-primary);
     border-color: transparent;

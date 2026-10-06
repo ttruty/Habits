@@ -3,6 +3,7 @@ import type { DataProvider } from '../data/provider';
 import { localDateKey } from '../scoring/dates';
 import { base } from '../styles/base';
 import {
+  choiceChips,
   colorPicker,
   frequencyLabel,
   frequencyPicker,
@@ -17,10 +18,13 @@ import {
   defaultAggregate,
   draftFromHabit,
   eventTypesFor,
+  filterFor,
   goalUnit,
   habitFromDraft,
   isManualSource,
   newDraft,
+  optionOn,
+  toggleOption,
   validate,
   type Draft,
   type DraftErrors,
@@ -84,6 +88,7 @@ export class HabitForm extends LitElement {
     }
     if (key === 'sourceId' || key === 'type') {
       next.aggregate = defaultAggregate(next, this.data.sources);
+      next.filterValues = [];
     }
     this.draft = next;
   }
@@ -151,6 +156,7 @@ export class HabitForm extends LitElement {
     const manual = isManualSource(d.sourceId, sources);
     const types = eventTypesFor(d.sourceId, sources);
     const unit = goalUnit(d, sources);
+    const filter = filterFor(d, sources);
     const hasManual = sources.some((s) => s.kind === 'manual');
     const value = (e: Event) => (e.target as HTMLInputElement).value;
     const err = (k: keyof DraftErrors) =>
@@ -249,6 +255,23 @@ export class HabitForm extends LitElement {
                         )}
                       </select>
                     </div>`
+                  : nothing
+              }
+              ${
+                filter
+                  ? html`<fieldset class="field">
+                      <legend>${filter.label}</legend>
+                      ${choiceChips(
+                        filter.label,
+                        filter.options,
+                        (o) => o.label,
+                        (o) => optionOn(d.filterValues, o),
+                        (o) => this.set('filterValues', toggleOption(d.filterValues, o)),
+                      )}
+                      <p class="caption">
+                        ${d.filterValues.length ? 'Only these count.' : 'None picked: every one counts.'}
+                      </p>
+                    </fieldset>`
                   : nothing
               }
               <div class="field">

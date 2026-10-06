@@ -309,6 +309,26 @@ describe('<habit-form>', () => {
     expect((await p.listHabits()).find((h) => h.id === 'demo-listen')?.archivedAt).toBeUndefined();
   });
 
+  it('picks which activities count', async () => {
+    const p = createDemoProvider({ now: () => now });
+    const { el } = await mount('habit-form', p, { habitId: 'demo-run' });
+    const group = el.shadowRoot!.querySelector(
+      '[role="group"][aria-label="Activities that count"]',
+    )!;
+    const chip = (name: string) =>
+      [...group.querySelectorAll('button')].find((b) => text(b) === name)!;
+    expect(chip('Run').getAttribute('aria-pressed')).toBe('true');
+    expect(chip('Walk').getAttribute('aria-pressed')).toBe('false');
+    chip('Run').click();
+    await settle(el);
+    chip('Hike').click();
+    await settle(el);
+    ($(el, 'form') as HTMLFormElement).requestSubmit();
+    await settle(el);
+    const saved = (await p.listHabits()).find((h) => h.id === 'demo-run')!;
+    expect(saved.match.where).toEqual({ sport_type: ['Hike'] });
+  });
+
   it('closes back to where it came from', async () => {
     const { el, log } = await mount('habit-form', createDemoProvider({ now: () => now }), {
       habitId: 'demo-run',

@@ -315,6 +315,10 @@ entry" (see CLAUDE.md, rule 4).
 
 Append findings, surprises and as-built changes here, newest first.
 
+- _2026-10-06_: **Activities that count.** A Withings workout habit counted walks too. Event
+  types can now declare a `filter` (meta key + named options); the habit editor shows it as
+  chips and saves `match.where`. Withings (category), Strava (sport type) and DeckFit (finished
+  or ended early) declare one.
 - _2026-10-03_: **Withings never connected, and its return showed the sign-in screen.**
   - Bug: the OAuth callback checks scope before the code exchange for every provider, but
     Withings only reports scope in the token reply, so its check always failed and every connect

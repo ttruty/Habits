@@ -155,7 +155,7 @@ checklist (§8) wins over a visual detail.
 **Code.** Tokens are loaded once by the app (`src/main.ts`) and inherited through shadow roots.
 Shared components are Lit templates in `src/ui/components.ts` (HabitCard, WeekStrip,
 ProgressSummary, StatTile, ProgressRing, Heatmap, TabBar, ColorPicker, IconPicker,
-FrequencyPicker), with their CSS in the exported `ui` style. Buttons and inputs are in
+FrequencyPicker, ChoiceChips), with their CSS in the exported `ui` style. Buttons and inputs are in
 `src/styles/base.ts`. Screens are in `src/components/`. Only `src/theme.ts` touches
 `<html data-theme>`.
 
@@ -183,6 +183,8 @@ its `theme` attribute (`auto | light | dark`) in place of `data-theme`.
   for every habit colour); stronger days use the solid fill with its `-on` text.
 - DayPicker becomes **FrequencyPicker**: the model is "days a week" (1–7), not chosen weekdays.
   Same look (7 × 44 px buttons, `aria-pressed`), with the live label above.
+- **ChoiceChips** (new): several-of choices as 44 px pill buttons, `aria-pressed`, a check icon
+  and ink fill when on (not colour alone). Used for "Activities that count" in the habit editor.
 - **IconPicker** (new): the habit icon keys as a grid of 44 px buttons, `aria-pressed`, the
   selected one filled with the habit colour.
 - No Reminders: the app has none. The tab bar is Today · Progress · [+] · Sources · More.

@@ -16,7 +16,28 @@ export const strava: Connector = {
   kind: 'strava',
   displayName: 'Strava',
   mode: 'oauth',
-  eventTypes: [{ type: 'activity.created', unit: 'seconds', label: 'Activity' }],
+  eventTypes: [
+    {
+      type: 'activity.created',
+      unit: 'seconds',
+      label: 'Activity',
+      filter: {
+        key: 'sport_type',
+        label: 'Activities that count',
+        options: [
+          { label: 'Run', values: RUNS },
+          { label: 'Ride', values: RIDES },
+          { label: 'Walk', values: ['Walk'] },
+          { label: 'Hike', values: ['Hike'] },
+          { label: 'Swim', values: ['Swim'] },
+          { label: 'Weights', values: ['WeightTraining'] },
+          { label: 'Workout', values: ['Workout', 'HighIntensityIntervalTraining', 'Crossfit'] },
+          { label: 'Yoga and pilates', values: ['Yoga', 'Pilates'] },
+          { label: 'Rowing', values: ['Rowing', 'VirtualRow'] },
+        ],
+      },
+    },
+  ],
   presets: [
     {
       name: 'Run',

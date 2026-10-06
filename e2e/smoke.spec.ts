@@ -90,6 +90,27 @@ test('the scorecard grid: week, month and 12 weeks, by keyboard', async ({ page 
   }
 });
 
+test('picks which activities count for a habit, in light and dark', async ({ page }) => {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    await page.goto('./');
+    await tab(page, 'Progress').click();
+    await page.getByRole('button', { name: /^Run/ }).click();
+    await page.getByRole('button', { name: 'Edit Run' }).click();
+    const activities = page.getByRole('group', { name: 'Activities that count' });
+    await expect(activities.getByRole('button', { name: 'Run' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await activities.getByRole('button', { name: 'Walk' }).click();
+    await expect(activities.getByRole('button', { name: 'Walk' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await axe(page, `${colorScheme} activities`);
+  }
+});
+
 test('corrects a day from the progress heatmap', async ({ page }) => {
   await page.goto('./');
   await tab(page, 'Progress').click();

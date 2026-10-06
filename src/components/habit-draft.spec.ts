@@ -6,10 +6,13 @@ import {
   defaultAggregate,
   displayUnit,
   draftFromHabit,
+  filterFor,
   eventTypesFor,
   goalUnit,
   habitFromDraft,
   newDraft,
+  optionOn,
+  toggleOption,
   validate,
 } from './habit-draft';
 
@@ -198,5 +201,59 @@ describe('counting workouts (not minutes)', () => {
     expect(defaultAggregate({ sourceId: 'y', type: 'listening.day' }, sources)).toBe('sum');
     expect(defaultAggregate({ sourceId: 'nope', type: 'x' }, sources)).toBe('sum');
     expect(defaultAggregate({ sourceId: 'm', type: 'check-in' }, sources)).toBe('count');
+  });
+});
+
+describe('activities that count', () => {
+  const walksAndRuns: Habit = {
+    ...listen,
+    id: 'h3',
+    match: { sourceIds: ['w'], types: ['workout.completed'] },
+    rule: { aggregate: 'count', atLeast: 1 },
+  };
+  const run = { label: 'Run', values: ['run', 'indoor_running'] };
+
+  it('comes from the event type: Withings workouts have one, steps do not', () => {
+    expect(filterFor({ sourceId: 'w', type: 'workout.completed' }, sources)?.key).toBe('category');
+    expect(filterFor({ sourceId: 'w', type: 'steps.day' }, sources)).toBeUndefined();
+  });
+
+  it('starts with none picked (every one counts) and saves no filter', () => {
+    const draft = draftFromHabit(walksAndRuns, sources);
+    expect(draft.filterValues).toEqual([]);
+    expect(habitFromDraft(draft, sources, walksAndRuns, 0).match).not.toHaveProperty('where');
+  });
+
+  it('saves the picked options as raw values and reads them back', () => {
+    const draft = draftFromHabit(walksAndRuns, sources);
+    const picked = { ...draft, filterValues: toggleOption([], run) };
+    const saved = habitFromDraft(picked, sources, walksAndRuns, 0);
+    expect(saved.match.where).toEqual({ category: ['run', 'indoor_running'] });
+    expect(draftFromHabit(saved, sources).filterValues).toEqual(['run', 'indoor_running']);
+  });
+
+  it('toggles an option on and off, and counts a partly chosen option as on', () => {
+    expect(toggleOption(['walk'], run)).toEqual(['walk', 'run', 'indoor_running']);
+    expect(toggleOption(['walk', 'run'], run)).toEqual(['walk']);
+    expect(optionOn(['run'], run)).toBe(true);
+    expect(optionOn(['walk'], run)).toBe(false);
+  });
+
+  it('reads a single value and keeps other where keys', () => {
+    const deckfit: Habit = {
+      ...walksAndRuns,
+      match: {
+        sourceIds: ['x'],
+        types: ['workout.completed'],
+        where: { outcome: 'finished', deck: 'A' },
+      },
+    };
+    const draft = draftFromHabit(deckfit, sources);
+    expect(draft.filterValues).toEqual(['finished']);
+    expect(habitFromDraft({ ...draft, filterValues: [] }, sources, deckfit, 0).match.where).toEqual(
+      {
+        deck: 'A',
+      },
+    );
   });
 });

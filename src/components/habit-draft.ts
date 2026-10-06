@@ -1,5 +1,6 @@
 import { manualMatch } from '../connectors/manual';
 import { connectorFor } from '../connectors/registry';
+import type { MetaFilter } from '../connectors/types';
 import type { DateKey, Habit, HabitColor, Source, Unit } from '../model';
 
 // The habit editor's form state, and the conversions between it and a Habit. Pure, so the
@@ -25,6 +26,8 @@ export interface Draft {
   amount: string;
   perWeek: number;
   startDate: DateKey | '';
+  /** Raw values of the event type's filter that count (e.g. Withings categories); [] = all. */
+  filterValues: string[];
 }
 
 export type DraftErrors = Partial<Record<'name' | 'amount' | 'source', string>>;
@@ -57,6 +60,28 @@ export function eventTypesFor(sourceId: string, sources: readonly Source[]) {
 
 export function unitOf(draft: Pick<Draft, 'sourceId' | 'type'>, sources: readonly Source[]) {
   return eventTypesFor(draft.sourceId, sources).find((t) => t.type === draft.type)?.unit;
+}
+
+/** The event type's filter (which activities count), if its connector offers one. */
+export function filterFor(
+  draft: Pick<Draft, 'sourceId' | 'type'>,
+  sources: readonly Source[],
+): MetaFilter | undefined {
+  return eventTypesFor(draft.sourceId, sources).find((t) => t.type === draft.type)?.filter;
+}
+
+/** Whether an option is chosen: any of its values is (older habits may hold just some). */
+export const optionOn = (values: readonly string[], option: MetaFilter['options'][number]) =>
+  option.values.some((v) => values.includes(v));
+
+/** The chosen values with an option switched on or off. */
+export function toggleOption(
+  values: readonly string[],
+  option: MetaFilter['options'][number],
+): string[] {
+  return optionOn(values, option)
+    ? values.filter((v) => !option.values.includes(v))
+    : [...values, ...option.values.filter((v) => !values.includes(v))];
 }
 
 /** The amount field's label and factor for this draft's event type. */
@@ -107,6 +132,7 @@ export function newDraft(id: string, sources: readonly Source[], today: DateKey)
     amount: '1',
     perWeek: 7,
     startDate: today,
+    filterValues: [],
   };
 }
 
@@ -118,6 +144,8 @@ export function draftFromHabit(habit: Habit, sources: readonly Source[]): Draft 
   const sourceId = habit.match.sourceIds?.[0] ?? '';
   const type = habit.match.types[0] ?? '';
   const { factor } = goalUnit({ sourceId, type, aggregate: rule.aggregate }, sources);
+  const key = filterFor({ sourceId, type }, sources)?.key;
+  const chosen = key === undefined ? undefined : habit.match.where?.[key];
   return {
     id: habit.id,
     name: habit.name,
@@ -130,6 +158,9 @@ export function draftFromHabit(habit: Habit, sources: readonly Source[]): Draft 
     amount: raw === undefined ? '' : String(Math.round((raw / factor) * 100) / 100),
     perWeek: habit.target.perWeek,
     startDate: habit.startDate ?? '',
+    filterValues: (Array.isArray(chosen) ? chosen : chosen === undefined ? [] : [chosen]).map(
+      String,
+    ),
   };
 }
 
@@ -148,7 +179,7 @@ export function validate(draft: Draft, sources: readonly Source[]): DraftErrors 
 
 /**
  * The habit a draft describes. `sourceId` must be a real source by now (create the Manual source
- * first). Keeps the original's `where` filter while its source and type are unchanged, and its
+ * first). Keeps the original's other `where` filters while its source and type are unchanged, and its
  * sort and archive state.
  */
 export function habitFromDraft(
@@ -178,7 +209,17 @@ export function habitFromDraft(
 
   const same =
     original?.match.sourceIds?.[0] === draft.sourceId && original.match.types[0] === draft.type;
-  const where = same ? original.match.where : undefined;
+  // Keep the original's other `where` keys; the filter's key is what the editor chose (none = all).
+  const filter = filterFor(draft, sources);
+  const kept = Object.entries((same && original.match.where) || {}).filter(
+    ([k]) => k !== filter?.key,
+  );
+  // Only values the filter offers: a draft carried over from another source can't leak in.
+  const offered = new Set(filter?.options.flatMap((o) => o.values));
+  const values = draft.filterValues.filter((v) => offered.has(v));
+  const chosen = filter && values.length ? [[filter.key, values]] : [];
+  const entries = [...kept, ...chosen];
+  const where = entries.length ? Object.fromEntries(entries) : undefined;
   const { factor } = goalUnit(draft, sources);
   const amount = Number(draft.amount) * factor;
   return {

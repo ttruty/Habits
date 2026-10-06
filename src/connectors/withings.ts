@@ -8,7 +8,27 @@ export const withings: Connector = {
   displayName: 'Withings',
   mode: 'oauth',
   eventTypes: [
-    { type: 'workout.completed', unit: 'seconds', label: 'Workout' },
+    {
+      type: 'workout.completed',
+      unit: 'seconds',
+      label: 'Workout',
+      filter: {
+        key: 'category',
+        label: 'Activities that count',
+        options: [
+          { label: 'Walk', values: ['walk', 'indoor_walk'] },
+          { label: 'Run', values: ['run', 'indoor_running'] },
+          { label: 'Hike', values: ['hiking'] },
+          { label: 'Cycling', values: ['bicycling', 'indoor_cycling', 'bmx'] },
+          { label: 'Swim', values: ['swimming'] },
+          { label: 'Weights', values: ['lift_weights', 'calisthenics'] },
+          { label: 'Yoga and pilates', values: ['yoga', 'pilates'] },
+          { label: 'Elliptical', values: ['elliptical'] },
+          { label: 'Rowing', values: ['rowing'] },
+          { label: 'Other', values: ['other', 'multi_sport'] },
+        ],
+      },
+    },
     { type: 'steps.day', unit: 'count', label: 'Steps per day', amountLabel: 'steps' },
   ],
   presets: [

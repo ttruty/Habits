@@ -6,7 +6,21 @@ export const deckfit: Connector = {
   kind: 'deckfit',
   displayName: 'DeckFit',
   mode: 'push',
-  eventTypes: [{ type: 'workout.completed', unit: 'seconds', label: 'Workout' }],
+  eventTypes: [
+    {
+      type: 'workout.completed',
+      unit: 'seconds',
+      label: 'Workout',
+      filter: {
+        key: 'outcome',
+        label: 'Workouts that count',
+        options: [
+          { label: 'Finished', values: ['finished'] },
+          { label: 'Ended early', values: ['abandoned'] },
+        ],
+      },
+    },
+  ],
   presets: [
     {
       name: 'Workout',
