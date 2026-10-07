@@ -1,7 +1,8 @@
 import type { Connector } from './types';
 
-// DeckFit reports each game session when it ends: value = seconds, meta = { game, deck, outcome }.
-// outcome is 'finished' or 'abandoned'; the preset counts finished ones only.
+// DeckFit reports a game session once a card is done (outcome 'in_progress', value = seconds so
+// far) and again when it ends ('finished' or 'abandoned'), with the same externalId so the last
+// report wins. meta = { game, deck, outcome }. The preset counts finished ones only.
 export const deckfit: Connector = {
   kind: 'deckfit',
   displayName: 'DeckFit',
@@ -17,6 +18,7 @@ export const deckfit: Connector = {
         options: [
           { label: 'Finished', values: ['finished'] },
           { label: 'Ended early', values: ['abandoned'] },
+          { label: 'Left part-way', values: ['in_progress'] },
         ],
       },
     },

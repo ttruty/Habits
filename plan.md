@@ -315,6 +315,10 @@ entry" (see CLAUDE.md, rule 4).
 
 Append findings, surprises and as-built changes here, newest first.
 
+- _2026-10-07_: **DeckFit workouts left part-way.** DeckFit only reported a workout when it
+  ended, so one left mid-game never arrived. It now reports once a card is done (outcome
+  `in_progress`) and again at the end; the Workout habit counts any outcome unless "Workouts
+  that count" narrows it.
 - _2026-10-06_: **Activities that count.** A Withings workout habit counted walks too. Event
   types can now declare a `filter` (meta key + named options); the habit editor shows it as
   chips and saves `match.where`. Withings (category), Strava (sport type) and DeckFit (finished

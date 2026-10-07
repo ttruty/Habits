@@ -210,7 +210,8 @@ connectors (allowed types, `onConflict`, later `normalize` and OAuth) live in
 An event type in a client descriptor can declare a `filter` (`MetaFilter` in
 `src/connectors/types.ts`): a meta key plus named options, each standing for one or more raw
 values (Withings `category`: Run = `run`, `indoor_running`; Strava `sport_type`; DeckFit
-`outcome`). The habit editor shows them as "Activities that count" chips and saves the chosen
+`outcome`: finished, abandoned, or `in_progress` for a workout reported once a card was done and
+never ended). The habit editor shows them as "Activities that count" chips and saves the chosen
 values to `match.where[key]`; none chosen = every event counts. Scoring is unchanged (`matches`
 already handles `where`). A new source gets the choice by declaring a filter, with no UI change.
 
